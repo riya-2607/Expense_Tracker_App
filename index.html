@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Restaurant Expense Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script>window.msalLoadError=false;</script>
+<script src="https://unpkg.com/@azure/msal-browser@3.11.0/lib/msal-browser.min.js" onerror="window.msalLoadError=true"></script>
+<style>
+/* ── RESET & BASE ─────────────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{
+  --bg:       #0A0A0F;
+  --surface:  #13131A;
+  --card:     #1C1C26;
+  --border:   rgba(255,255,255,0.08);
+  --border2:  rgba(255,255,255,0.14);
+  --text:     #F0EFF8;
+  --muted:    rgba(240,239,248,0.45);
+  --hint:     rgba(240,239,248,0.28);
+  --accent:   #7C6AF7;
+  --accent2:  #5B4FD4;
+  --gold:     #F5C842;
+  --success:  #34D399;
+  --danger:   #F87171;
+  --r:        16px;
+}
+html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;}
+
+/* ── NOISE TEXTURE OVERLAY ────────────────────────────────────────────────── */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity:.4;
+}
+
+/* ── ACCENT GLOW ──────────────────────────────────────────────────────────── */
+body::after{
+  content:'';position:fixed;top:-200px;left:50%;transform:translateX(-50%);
+  width:600px;height:400px;
+  background:radial-gradient(ellipse,rgba(124,106,247,0.15) 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+
+/* ── LAYOUT ───────────────────────────────────────────────────────────────── */
+.wrap{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:0 16px 60px;}
+
+/* ── HEADER ───────────────────────────────────────────────────────────────── */
+.header{
+  padding:36px 0 28px;
+  text-align:center;
+}
+.header-eyebrow{
+  font-family:'Syne',sans-serif;
+  font-size:10px;letter-spacing:3px;text-transform:uppercase;
+  color:var(--accent);margin-bottom:12px;
+}
+.header h1{
+  font-family:'Syne',sans-serif;
+  font-size:clamp(22px,5vw,28px);font-weight:800;
+  color:var(--text);line-height:1.15;margin-bottom:6px;
+}
+.header p{font-size:13px;color:var(--muted);line-height:1.6;}
+
+/* ── SIGN-IN WALL ─────────────────────────────────────────────────────────── */
+#signInWall{
+  background:var(--card);
+  border:1px solid var(--border2);
+  border-radius:var(--r);
+  padding:32px 24px;
+  text-align:center;
+  margin-top:8px;
+}
+#signInWall h2{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:8px;}
+#signInWall p{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.6;}
+.ms-btn{
+  display:inline-flex;align-items:center;gap:10px;
+  background:#fff;color:#1a1a1a;
+  border:none;border-radius:8px;
+  padding:12px 22px;font-size:14px;font-weight:500;
+  cursor:pointer;transition:opacity .15s;
+  font-family:'DM Sans',sans-serif;
+}
+.ms-btn:hover{opacity:.92;}
+.ms-logo{width:18px;height:18px;flex-shrink:0;}
+
+/* ── USER BAR ─────────────────────────────────────────────────────────────── */
+#userBar{
+  display:none;
+  align-items:center;justify-content:space-between;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 14px;
+  margin-bottom:16px;
+  font-size:12px;
+}
+#userBar.show{display:flex;}
+.user-info{display:flex;align-items:center;gap:8px;}
+.user-avatar{
+  width:28px;height:28px;border-radius:50%;
+  background:var(--accent2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:#fff;
+  font-family:'Syne',sans-serif;
+  flex-shrink:0;
+}
+.user-name{color:var(--text);font-weight:500;}
+.sign-out-btn{
+  font-size:11px;color:var(--muted);
+  background:none;border:none;cursor:pointer;
+  text-decoration:underline;text-underline-offset:2px;
+}
+
+/* ── CARDS ────────────────────────────────────────────────────────────────── */
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  margin-bottom:12px;
+  overflow:hidden;
+}
+.card-head{
+  padding:14px 18px 12px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.card-head-label{
+  font-family:'Syne',sans-serif;
+  font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:var(--accent);
+}
+.card-head-dot{
+  width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;
+}
+.card-body{padding:16px 18px;}
+
+/* ── FIELDS ───────────────────────────────────────────────────────────────── */
+.field{margin-bottom:14px;}
+.field:last-child{margin-bottom:0;}
+label{
+  display:block;
+  font-size:11px;font-weight:500;
+  color:var(--muted);
+  text-transform:uppercase;letter-spacing:.8px;
+  margin-bottom:6px;
+}
+label .req{color:var(--accent);margin-left:2px;}
+input[type="date"],
+input[type="number"],
+input[type="text"],
+input[type="email"],
+select,textarea{
+  width:100%;
+  padding:12px 14px;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:10px;
+  font-size:15px;
+  color:var(--text);
+  font-family:'DM Sans',sans-serif;
+  appearance:none;-webkit-appearance:none;
+  outline:none;
+  transition:border-color .18s,box-shadow .18s;
+}
+input:focus,select:focus,textarea:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(124,106,247,.15);
+}
+input::placeholder,textarea::placeholder{color:var(--hint);}
+select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='rgba(240,239,248,0.4)' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;
+  padding-right:38px;
+}
+select option{background:#1C1C26;color:var(--text);}
+textarea{resize:vertical;min-height:76px;font-size:14px;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.hint{font-size:11px;color:var(--hint);margin-top:5px;}
+
+/* ── TOTAL BAR ────────────────────────────────────────────────────────────── */
+.total-bar{
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:12px;
+  padding:14px 16px;
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:4px;
+}
+.total-bar .lbl{font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+.total-bar .amt{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--gold);}
+
+/* ── RECEIPT CAPTURE ──────────────────────────────────────────────────────── */
+.capture-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.cap-btn{
+  padding:14px 10px;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:10px;
+  color:var(--text);
+  font-size:13px;font-weight:500;
+  font-family:'DM Sans',sans-serif;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:border-color .18s,background .18s;
+}
+.cap-btn:hover{border-color:var(--accent);background:rgba(124,106,247,.08);}
+.cap-icon{font-size:17px;}
+input[type="file"]{display:none;}
+
+/* ── PREVIEW ──────────────────────────────────────────────────────────────── */
+.preview-wrap{
+  border-radius:10px;overflow:hidden;
+  border:1px solid var(--border2);
+  display:none;
+}
+.preview-wrap.show{display:block;}
+.preview-wrap img{width:100%;display:block;max-height:220px;object-fit:contain;background:var(--surface);}
+.preview-meta{
+  padding:10px 14px;
+  background:var(--surface);
+  display:flex;justify-content:space-between;align-items:center;
+  border-top:1px solid var(--border);
+}
+.preview-name{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;}
+.preview-remove{background:none;border:none;color:var(--danger);font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;}
+
+/* ── LIVE CAMERA ──────────────────────────────────────────────────────────── */
+.camera-viewport{
+  border-radius:10px;overflow:hidden;
+  background:#0a0a0f;
+  aspect-ratio:4/3;
+  position:relative;
+  border:1px solid var(--border2);
+  display:none;
+  margin-bottom:10px;
+}
+.camera-viewport.show{display:block;}
+#camVideo{width:100%;height:100%;object-fit:cover;display:block;}
+#camCanvas{display:none;}
+#camPreviewImg{
+  width:100%;height:100%;object-fit:contain;
+  display:none;position:absolute;inset:0;background:#0a0a0f;
+}
+.cam-placeholder{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;color:rgba(240,239,248,.3);pointer-events:none;
+}
+.cam-placeholder svg{opacity:.5;}
+.cam-placeholder span{font-size:12px;}
+.cam-action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.cam-action-row .cap-btn{display:none;}
+.cam-action-row .cap-btn.show{display:flex;}
+
+
+/* ── UPLOAD PROGRESS ──────────────────────────────────────────────────────── */
+.upload-progress{
+  display:none;
+  margin-top:10px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:10px 14px;
+}
+.upload-progress.show{display:block;}
+.progress-label{font-size:11px;color:var(--muted);margin-bottom:6px;}
+.progress-bar-wrap{background:var(--border2);border-radius:4px;height:4px;overflow:hidden;}
+.progress-bar{height:100%;background:var(--accent);border-radius:4px;width:0%;transition:width .3s;}
+
+/* ── SUBMIT BTN ───────────────────────────────────────────────────────────── */
+.btn-submit{
+  width:100%;padding:16px;
+  background:var(--accent);
+  color:#fff;
+  font-family:'Syne',sans-serif;
+  font-size:15px;font-weight:700;letter-spacing:.5px;
+  border:none;border-radius:12px;
+  cursor:pointer;
+  transition:opacity .15s,transform .1s;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.btn-submit:hover{opacity:.9;}
+.btn-submit:active{transform:scale(.98);}
+.btn-submit:disabled{opacity:.45;cursor:not-allowed;transform:none;}
+.btn-clear{
+  width:100%;padding:12px;
+  background:transparent;
+  border:1px solid var(--border2);
+  border-radius:12px;
+  color:var(--muted);
+  font-size:13px;font-weight:500;
+  font-family:'DM Sans',sans-serif;
+  cursor:pointer;margin-top:8px;
+  transition:border-color .15s;
+}
+.btn-clear:hover{border-color:var(--border2);color:var(--text);}
+
+/* ── SPINNER ──────────────────────────────────────────────────────────────── */
+.spinner{
+  width:16px;height:16px;
+  border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+  flex-shrink:0;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── SUCCESS SCREEN ───────────────────────────────────────────────────────── */
+#successScreen{display:none;text-align:center;padding:48px 20px;}
+#successScreen.show{display:block;}
+.success-ring{
+  width:72px;height:72px;
+  border:3px solid var(--success);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:30px;margin:0 auto 20px;
+}
+.success-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--success);margin-bottom:8px;}
+.success-sub{font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:28px;}
+.btn-another{
+  padding:13px 28px;
+  background:var(--accent);color:#fff;
+  border:none;border-radius:10px;
+  font-family:'Syne',sans-serif;font-size:14px;font-weight:700;
+  cursor:pointer;
+}
+
+/* ── TOAST ────────────────────────────────────────────────────────────────── */
+.toast{
+  position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(100px);
+  padding:11px 20px;border-radius:50px;
+  font-size:13px;font-weight:500;color:#fff;
+  font-family:'DM Sans',sans-serif;
+  box-shadow:0 8px 32px rgba(0,0,0,.4);
+  transition:transform .3s ease;z-index:999;
+  white-space:nowrap;
+}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.ok{background:var(--success);}
+.toast.err{background:var(--danger);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-eyebrow">Restaurant Management</div>
+    <h1>Expense Tracker</h1>
+    <p>Saves to Google Sheets · Receipts to OneDrive</p>
+  </div>
+
+  <!-- SIGN-IN WALL (shown until authenticated) -->
+  <div id="signInWall">
+    <h2>Sign in to continue</h2>
+    <p>Use your Microsoft account to upload receipts directly to your OneDrive. Your expense data goes to Google Sheets.</p>
+    <button class="ms-btn" onclick="signIn()">
+      <svg class="ms-logo" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+        <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+        <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+      </svg>
+      Sign in with Microsoft
+    </button>
+  </div>
+
+  <!-- USER BAR (shown when signed in) -->
+  <div id="userBar">
+    <div class="user-info">
+      <div class="user-avatar" id="userInitials">?</div>
+      <span class="user-name" id="userName">Loading...</span>
+    </div>
+    <button class="sign-out-btn" onclick="signOut()">Sign out</button>
+  </div>
+
+  <!-- FORM (shown when signed in) -->
+  <div id="formWrap" style="display:none;">
+
+    <!-- Date & Category -->
+    <div class="card">
+      <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Date & Category</div></div>
+      <div class="card-body">
+        <div class="field">
+          <label>Date <span class="req">*</span></label>
+          <input type="date" id="date"/>
+          <div class="hint">Defaults to today — tap to change</div>
+        </div>
+        <div class="field">
+          <label>Category <span class="req">*</span></label>
+          <select id="category" onchange="updateSubcats()">
+            <option value="">— Select category —</option>
+            <option>Food &amp; Beverage</option>
+            <option>Labour</option>
+            <option>Occupancy</option>
+            <option>Utilities</option>
+            <option>Marketing</option>
+            <option>Supplies &amp; Equipment</option>
+            <option>Maintenance</option>
+            <option>Technology</option>
+            <option>Insurance</option>
+            <option>Miscellaneous</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sub-Category</label>
+          <select id="subcategory">
+            <option value="">— Select category first —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vendor -->
+    <div class="card">
+      <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Vendor & Details</div></div>
+      <div class="card-body">
+        <div class="field">
+          <label>Vendor / Supplier <span class="req">*</span></label>
+          <input type="text" id="vendor" placeholder="e.g. Fresh Fields Co." autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <textarea id="description" placeholder="e.g. Weekly produce order"></textarea>
+        </div>
+        <div class="field">
+          <label>Payment Method <span class="req">*</span></label>
+          <select id="payment">
+            <option value="">— Select —</option>
+            <option>Cash</option>
+            <option>Debit Card</option>
+            <option>Credit Card</option>
+            <option>Bank Transfer</option>
+            <option>Cheque</option>
+            <option>Owner Equity</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Amount -->
+    <div class="card">
+      <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Amount</div></div>
+      <div class="card-body">
+        <div class="row2">
+          <div class="field">
+            <label>Amount ($) <span class="req">*</span></label>
+            <input type="number" id="amount" placeholder="0.00" min="0" step="0.01" oninput="calcTotal()"/>
+          </div>
+          <div class="field">
+            <label>Tax ($)</label>
+            <input type="number" id="tax" placeholder="0.00" min="0" step="0.01" oninput="calcTotal()"/>
+            <div class="hint">HST / GST / PST</div>
+          </div>
+        </div>
+        <div class="total-bar">
+          <div class="lbl">Total (incl. tax)</div>
+          <div class="amt" id="totalDisplay">$0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Receipt Image -->
+    <div class="card">
+      <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Receipt Image</div></div>
+      <div class="card-body">
+        <!-- Live camera viewport -->
+        <div class="camera-viewport" id="cameraViewport">
+          <div class="cam-placeholder" id="camPlaceholder">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>Camera ready</span>
+          </div>
+          <video id="camVideo" autoplay playsinline></video>
+          <canvas id="camCanvas"></canvas>
+          <img id="camPreviewImg" alt="Captured receipt"/>
+        </div>
+
+        <!-- Camera action buttons (shown/hidden by JS) -->
+        <div class="cam-action-row">
+          <button type="button" class="cap-btn show" id="btnOpenCamera" onclick="openCamera()">
+            <span class="cap-icon">📷</span> Use Camera
+          </button>
+          <button type="button" class="cap-btn show" onclick="document.getElementById('fileGallery').click()">
+            <span class="cap-icon">🖼</span> Choose File
+          </button>
+          <button type="button" class="cap-btn" id="btnCapture" onclick="capturePhoto()">
+            <span class="cap-icon">⊙</span> Capture
+          </button>
+          <button type="button" class="cap-btn" id="btnRetake" onclick="retakePhoto()">
+            <span class="cap-icon">↩</span> Retake
+          </button>
+        </div>
+
+        <input type="file" id="fileGallery" accept="image/*,application/pdf" onchange="handleFile(this)"/>
+
+        <div class="preview-wrap" id="previewWrap">
+          <img id="previewImg" src="" alt="Receipt preview"/>
+          <div class="preview-meta">
+            <span class="preview-name" id="previewName"></span>
+            <button class="preview-remove" onclick="removeImage()">✕ Remove</button>
+          </div>
+        </div>
+        <div class="upload-progress" id="uploadProgress">
+          <div class="progress-label" id="progressLabel">Uploading to OneDrive...</div>
+          <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+        </div>
+        <div class="hint" style="margin-top:10px;">Uploaded to OneDrive · link stored in Sheet</div>
+      </div>
+    </div>
+
+    <!-- Extra Info -->
+    <div class="card">
+      <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Additional Info</div></div>
+      <div class="card-body">
+        <div class="field">
+          <label>Approved By</label>
+          <input type="text" id="approvedBy" placeholder="Manager name"/>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Receipt #</label>
+            <input type="text" id="receiptNo" placeholder="RCP-001"/>
+          </div>
+          <div class="field">
+            <label>Your Email</label>
+            <input type="email" id="submittedBy" placeholder="auto-filled"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="card">
+      <div class="card-body">
+        <button class="btn-submit" id="submitBtn" onclick="submitForm()">
+          <span id="submitLabel">Save Expense</span>
+        </button>
+        <button class="btn-clear" onclick="clearForm()">Clear Form</button>
+      </div>
+    </div>
+
+  </div><!-- /formWrap -->
+
+  <!-- SUCCESS -->
+  <div id="successScreen">
+    <div class="success-ring">✓</div>
+    <div class="success-title">Expense Logged!</div>
+    <div class="success-sub" id="successMsg">Saved to Google Sheets.<br>Receipt uploaded to OneDrive.</div>
+    <button class="btn-another" onclick="resetForm()">Add Another</button>
+  </div>
+
+</div><!-- /wrap -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── MSAL CONFIG ──────────────────────────────────────────────────────────────
+const MSAL_CONFIG = {
+  auth: {
+    clientId:    "4151be33-2fa1-466d-b734-b4fa2babc4da",
+    authority:   "https://login.microsoftonline.com/consumers",
+    redirectUri: "https://riya-2607.github.io/TBM/", // update before deploying
+  },
+  cache: { cacheLocation: "localStorage" }
+};
+
+// ── APPS SCRIPT ENDPOINT ─────────────────────────────────────────────────────
+const APPS_SCRIPT_URL = "YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+
+// ── ONEDRIVE FOLDER ──────────────────────────────────────────────────────────
+const ONEDRIVE_FOLDER = "Restaurant Receipts";
+
+// ── MSAL INSTANCE ────────────────────────────────────────────────────────────
+// Declare first, initialize in init()
+let msalInstance = null;
+let currentAccount = null;
+
+// ── SUBCATS ──────────────────────────────────────────────────────────────────
+const SUBCATS = {
+  "Food & Beverage":      ["Produce","Meat & Seafood","Dairy","Beverages","Dry Goods","Bakery","Condiments"],
+  "Labour":               ["Kitchen Staff","Front of House","Management","Contract / Casual","Overtime"],
+  "Occupancy":            ["Rent","Property Tax","Common Area Fees"],
+  "Utilities":            ["Electricity","Natural Gas","Water","Internet","Phone"],
+  "Marketing":            ["Social Media","Print / Flyers","Events / Promotions","Photography","PR"],
+  "Supplies & Equipment": ["Smallwares","Uniforms","Cleaning Supplies","Kitchen Equipment","Furniture"],
+  "Maintenance":          ["HVAC","Plumbing","Electrical","Pest Control","General Repairs"],
+  "Technology":           ["POS System","Accounting Software","Website / Online","Security System","Delivery Apps"],
+  "Insurance":            ["General Liability","Workers Comp","Property Insurance","Business Interruption"],
+  "Miscellaneous":        ["Bank Fees","Office Supplies","Training","Legal / Accounting","Other"]
+};
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+(async function init() {
+  try {
+    msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+    await msalInstance.initialize();
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      currentAccount = accounts[0];
+      showSignedIn(currentAccount);
+    }
+  } catch(err) {
+    console.warn("MSAL init:", err.message);
+  }
+  setToday();
+})();
+
+function setToday() {
+  const t = new Date();
+  document.getElementById("date").value =
+    `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`;
+}
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+async function signIn() {
+  if (typeof msal === "undefined") {
+    showToast("❌ Login library failed to load. Try disabling browser extensions or ad blockers.", "err");
+    return;
+  }
+  try {
+    if (!msalInstance) {
+      msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+      await msalInstance.initialize();
+    }
+    const result = await msalInstance.loginPopup({
+      scopes: ["User.Read", "Files.ReadWrite"]
+    });
+    currentAccount = result.account;
+    showSignedIn(currentAccount);
+  } catch(e) {
+    showToast("Sign-in failed: " + e.message, "err");
+  }
+}
+function signOut() {
+  msalInstance.logoutPopup({ account: currentAccount });
+}
+
+function showSignedIn(account) {
+  document.getElementById("signInWall").style.display = "none";
+  document.getElementById("formWrap").style.display   = "block";
+
+  const name     = account.name || account.username;
+  const initials = name.split(" ").map(n => n[0]).join("").substring(0,2).toUpperCase();
+  document.getElementById("userInitials").textContent = initials;
+  document.getElementById("userName").textContent     = name;
+  document.getElementById("submittedBy").value        = account.username;
+  document.getElementById("userBar").classList.add("show");
+}
+
+// ── GET GRAPH TOKEN ──────────────────────────────────────────────────────────
+async function getGraphToken() {
+  const request = { scopes: ["Files.ReadWrite"], account: currentAccount };
+  try {
+    const result = await msalInstance.acquireTokenSilent(request);
+    return result.accessToken;
+  } catch(e) {
+    const result = await msalInstance.acquireTokenPopup(request);
+    return result.accessToken;
+  }
+}
+
+// ── UPLOAD RECEIPT TO ONEDRIVE ────────────────────────────────────────────────
+async function uploadToOneDrive(file, dateStr, vendor) {
+  const token    = await getGraphToken();
+  const safeName = `${dateStr}_${vendor.replace(/[^a-zA-Z0-9]/g,"_").substring(0,25)}_${file.name}`;
+  const endpoint = `https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${safeName}:/content`;
+
+  showProgress(10, "Creating OneDrive folder...");
+
+  // Ensure folder exists
+  await fetch(`https://graph.microsoft.com/v1.0/me/drive/root/children`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: ONEDRIVE_FOLDER,
+      folder: {},
+      "@microsoft.graph.conflictBehavior": "rename"
+    })
+  });
+
+  showProgress(30, "Uploading receipt...");
+
+  const uploadRes = await fetch(endpoint, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": file.type || "application/octet-stream" },
+    body: file
+  });
+
+  if (!uploadRes.ok) throw new Error("Upload failed: " + uploadRes.statusText);
+
+  showProgress(75, "Getting shareable link...");
+  const fileData = await uploadRes.json();
+
+  // Create sharing link
+  const shareRes = await fetch(
+    `https://graph.microsoft.com/v1.0/me/drive/items/${fileData.id}/createLink`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "view", scope: "anonymous" })
+    }
+  );
+
+  showProgress(95, "Finalizing...");
+  const shareData = await shareRes.json();
+  return shareData.link?.webUrl || fileData.webUrl;
+}
+
+// ── PROGRESS HELPERS ──────────────────────────────────────────────────────────
+function showProgress(pct, label) {
+  document.getElementById("uploadProgress").classList.add("show");
+  document.getElementById("progressBar").style.width  = pct + "%";
+  document.getElementById("progressLabel").textContent = label;
+}
+function hideProgress() {
+  document.getElementById("uploadProgress").classList.remove("show");
+  document.getElementById("progressBar").style.width = "0%";
+}
+
+// ── RECEIPT FILE HANDLING ─────────────────────────────────────────────────────
+let receiptFile = null;
+let cameraStream = null;
+
+// --- Gallery / file picker ---
+function handleFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  receiptFile = file;
+  stopCamera();
+  document.getElementById("cameraViewport").classList.remove("show");
+  // Show in existing preview
+  document.getElementById("previewName").textContent = file.name;
+  if (file.type.startsWith("image/")) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById("previewImg").src = e.target.result;
+      document.getElementById("previewWrap").classList.add("show");
+    };
+    reader.readAsDataURL(file);
+  } else {
+    document.getElementById("previewImg").src = "";
+    document.getElementById("previewWrap").classList.add("show");
+  }
+  // Reset cam buttons
+  document.getElementById("btnOpenCamera").classList.add("show");
+  document.getElementById("btnCapture").classList.remove("show");
+  document.getElementById("btnRetake").classList.remove("show");
+}
+
+// --- Live camera ---
+async function openCamera() {
+  try {
+    stopCamera();
+    // Remove any previously captured file preview
+    document.getElementById("previewWrap").classList.remove("show");
+    receiptFile = null;
+
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } },
+      audio: false
+    });
+    const video = document.getElementById("camVideo");
+    video.srcObject = cameraStream;
+    video.style.display = "block";
+    document.getElementById("camPreviewImg").style.display = "none";
+    document.getElementById("camPlaceholder").style.display = "none";
+    document.getElementById("cameraViewport").classList.add("show");
+
+    // Swap buttons: hide Open Camera, show Capture
+    document.getElementById("btnOpenCamera").classList.remove("show");
+    document.getElementById("btnCapture").classList.add("show");
+    document.getElementById("btnRetake").classList.remove("show");
+  } catch(e) {
+    showToast("Camera error: " + e.message, "err");
+  }
+}
+
+function capturePhoto() {
+  const video  = document.getElementById("camVideo");
+  const canvas = document.getElementById("camCanvas");
+  canvas.width  = video.videoWidth  || 1280;
+  canvas.height = video.videoHeight || 960;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+
+  canvas.toBlob(blob => {
+    stopCamera();
+    // Show captured image in viewport
+    const prev = document.getElementById("camPreviewImg");
+    prev.src = URL.createObjectURL(blob);
+    prev.style.display = "block";
+    document.getElementById("camVideo").style.display = "none";
+    document.getElementById("camPlaceholder").style.display = "none";
+
+    // Store as receiptFile (fake File object)
+    const date = document.getElementById("date").value || new Date().toISOString().split("T")[0];
+    const vendor = (document.getElementById("vendor").value || "receipt").replace(/[^a-zA-Z0-9]/g,"_").substring(0,20);
+    receiptFile = new File([blob], `${date}_${vendor}.jpg`, { type: "image/jpeg" });
+
+    // Swap buttons: show Retake + hide Capture + hide OpenCamera
+    document.getElementById("btnOpenCamera").classList.remove("show");
+    document.getElementById("btnCapture").classList.remove("show");
+    document.getElementById("btnRetake").classList.add("show");
+
+    showToast("📸 Photo captured — ready to submit", "ok");
+  }, "image/jpeg", 0.93);
+}
+
+function retakePhoto() {
+  receiptFile = null;
+  document.getElementById("camPreviewImg").style.display = "none";
+  document.getElementById("camPlaceholder").style.display = "flex";
+  // Reopen camera
+  openCamera();
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  const video = document.getElementById("camVideo");
+  if (video) { video.srcObject = null; video.style.display = "none"; }
+}
+
+function removeImage() {
+  receiptFile = null;
+  stopCamera();
+  document.getElementById("previewWrap").classList.remove("show");
+  document.getElementById("previewImg").src = "";
+  document.getElementById("camPreviewImg").style.display = "none";
+  document.getElementById("camPreviewImg").src = "";
+  document.getElementById("cameraViewport").classList.remove("show");
+  document.getElementById("camPlaceholder").style.display = "flex";
+  document.getElementById("fileGallery").value = "";
+  document.getElementById("btnOpenCamera").classList.add("show");
+  document.getElementById("btnCapture").classList.remove("show");
+  document.getElementById("btnRetake").classList.remove("show");
+  hideProgress();
+}
+
+// ── FORM LOGIC ────────────────────────────────────────────────────────────────
+function updateSubcats() {
+  const cat = document.getElementById("category").value;
+  const sel = document.getElementById("subcategory");
+  sel.innerHTML = '<option value="">— Select sub-category —</option>';
+  (SUBCATS[cat] || []).forEach(s => {
+    const o = document.createElement("option");
+    o.value = o.text = s;
+    sel.appendChild(o);
+  });
+}
+
+function calcTotal() {
+  const a = parseFloat(document.getElementById("amount").value) || 0;
+  const t = parseFloat(document.getElementById("tax").value)    || 0;
+  document.getElementById("totalDisplay").textContent =
+    "$" + (a + t).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+// ── SUBMIT ────────────────────────────────────────────────────────────────────
+async function submitForm() {
+  const date     = document.getElementById("date").value;
+  const category = document.getElementById("category").value;
+  const vendor   = document.getElementById("vendor").value.trim();
+  const payment  = document.getElementById("payment").value;
+  const amount   = parseFloat(document.getElementById("amount").value) || 0;
+
+  if (!date || !category || !vendor || !payment || amount <= 0) {
+    showToast("⚠ Fill in all required fields", "err");
+    return;
+  }
+
+  const btn   = document.getElementById("submitBtn");
+  const label = document.getElementById("submitLabel");
+  btn.disabled = true;
+  label.innerHTML = '<div class="spinner"></div> Saving...';
+
+  try {
+    // 1. Upload receipt to OneDrive (if selected)
+    let receiptLink = "";
+    if (receiptFile) {
+      receiptLink = await uploadToOneDrive(receiptFile, date, vendor);
+      showProgress(100, "Upload complete!");
+      await new Promise(r => setTimeout(r, 600));
+      hideProgress();
+    }
+
+    // 2. Send expense data to Apps Script → Google Sheets
+    label.innerHTML = '<div class="spinner"></div> Writing to Sheet...';
+    const payload = {
+      date        : date,
+      category    : category,
+      subcategory : document.getElementById("subcategory").value,
+      vendor      : vendor,
+      description : document.getElementById("description").value.trim(),
+      payment     : payment,
+      amount      : amount.toFixed(2),
+      tax         : (parseFloat(document.getElementById("tax").value) || 0).toFixed(2),
+      approvedBy  : document.getElementById("approvedBy").value.trim(),
+      receiptNo   : document.getElementById("receiptNo").value.trim(),
+      submittedBy : document.getElementById("submittedBy").value.trim(),
+      receiptLink : receiptLink,
+    };
+
+    const res  = await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      const total = (parseFloat(payload.amount) + parseFloat(payload.tax)).toFixed(2);
+      document.getElementById("successMsg").innerHTML =
+        `Total $${total} saved to Google Sheets.${receiptLink ? "<br>Receipt uploaded to OneDrive." : ""}`;
+      document.getElementById("formWrap").style.display    = "none";
+      document.getElementById("successScreen").classList.add("show");
+    } else {
+      throw new Error(data.error || "Unknown error from server");
+    }
+
+  } catch(err) {
+    showToast("❌ " + err.message, "err");
+  } finally {
+    btn.disabled = false;
+    label.textContent = "Save Expense";
+  }
+}
+
+function clearForm() {
+  ["vendor","description","approvedBy","receiptNo"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("amount").value   = "";
+  document.getElementById("tax").value      = "";
+  document.getElementById("category").value = "";
+  document.getElementById("payment").value  = "";
+  document.getElementById("subcategory").innerHTML = '<option value="">— Select category first —</option>';
+  document.getElementById("totalDisplay").textContent = "$0.00";
+  removeImage();
+  stopCamera();
+  setToday();
+}
+
+function resetForm() {
+  document.getElementById("successScreen").classList.remove("show");
+  document.getElementById("formWrap").style.display = "block";
+  clearForm();
+}
+
+function showToast(msg, type = "ok") {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className   = `toast ${type} show`;
+  setTimeout(() => t.className = `toast ${type}`, 3200);
+}
+</script>
+</body>
+</html>
