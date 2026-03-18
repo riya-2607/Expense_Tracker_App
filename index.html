@@ -400,6 +400,12 @@ input[type="file"]{display:none;}
           </select>
         </div>
         <div class="field">
+          <label>Payment Type <span class="req">*</span></label>
+          <select id="paymentType">
+            <option value="">— Select —</option>
+          </select>
+        </div>
+        <div class="field">
           <label>Description</label>
           <textarea id="description" placeholder="e.g. Weekly produce order"></textarea>
         </div>
@@ -509,6 +515,12 @@ const PAID_BY = [
   "Roshan",
 ];
 
+const PAYMENT_TYPE = [
+  "Debit",
+  "Credit",
+  "Cash",
+];
+
 const VENDORS = [
   "A1Cash&Carry",
   "Amazon",
@@ -576,6 +588,11 @@ function populateDropdowns() {
   const paidBySel = document.getElementById("paidBy");
   PAID_BY.forEach(p => {
     const o = document.createElement("option"); o.value = o.text = p; paidBySel.appendChild(o);
+  });
+
+  const paymentTypeSel = document.getElementById("paymentType");
+  PAYMENT_TYPE.forEach(p => {
+    const o = document.createElement("option"); o.value = o.text = p; paymentTypeSel.appendChild(o);
   });
 
   const vendorSel = document.getElementById("vendor");
@@ -796,7 +813,7 @@ function calcTotal() {
 
 // ── EXCEL CONFIG ─────────────────────────────────────────────────────────────
 const EXCEL_PATH    = "Documents/ExpenseTracker/Expenses.xlsx";
-const EXCEL_HEADERS = ["Date","Category","Vendor","Paid_By","Description","Amount","Tax","Total_Amount","Receipt_Name","Receipt_Link"];
+const EXCEL_HEADERS = ["Date","Category","Vendor","Paid_By","Payment_Type","Description","Amount","Tax","Total_Amount","Receipt_Name","Receipt_Link"];
 
 // ── SAFE GRAPH FETCH ──────────────────────────────────────────────────────────
 async function gFetch(path, opts = {}) {
@@ -843,7 +860,7 @@ async function appendRowToExcel(row) {
     const a1Val = JSON.parse(await (await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1')`, { headers: h })).text()).values?.[0]?.[0] || "";
     let nextRow = 2;
     if (!a1Val.toString().trim()) {
-      await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1:J1')`, {
+      await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1:K1')`, {
         method: "PATCH", headers: h, body: JSON.stringify({ values: [EXCEL_HEADERS] })
       });
     } else {
@@ -851,7 +868,7 @@ async function appendRowToExcel(row) {
       nextRow = (usedData.rowCount || 1) + 1;
     }
 
-    const writeRes  = await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A${nextRow}:J${nextRow}')`, {
+    const writeRes  = await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A${nextRow}:K${nextRow}')`, {
       method: "PATCH", headers: h, body: JSON.stringify({ values: [row] })
     });
     const writeText = await writeRes.text();
@@ -899,6 +916,7 @@ async function submitForm() {
       category,
       vendor,
       document.getElementById("paidBy").value.trim(),
+      document.getElementById("paymentType").value.trim(),
       document.getElementById("description").value.trim(),
       amount.toFixed(2),
       tax.toFixed(2),
