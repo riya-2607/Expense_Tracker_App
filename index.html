@@ -472,17 +472,7 @@ input[type="file"]{display:none;}
       </div>
     </div>
 
-    <!-- Extra Info -->
-    <div class="card">
-      <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Additional Info</div></div>
-      <div class="card-body">
-        <div class="field">
-          <label>Approved By</label>
-          <input type="text" id="approvedBy" placeholder="Manager name"/>
-        </div>
 
-      </div>
-    </div>
 
     <!-- Submit -->
     <div class="card">
@@ -572,7 +562,7 @@ const MSAL_CONFIG = {
   cache: { cacheLocation: "localStorage" }
 };
 
-const ONEDRIVE_FOLDER = "Restaurant Receipts";
+const RECEIPT_PATH = "Documents/ExpenseTracker/Receipts";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let msalInstance   = null;
@@ -650,26 +640,32 @@ async function getGraphToken() {
 // ── UPLOAD RECEIPT TO ONEDRIVE ────────────────────────────────────────────────
 async function uploadToOneDrive(file, dateStr, vendor) {
   const token    = await getGraphToken();
-  const safeName = `${dateStr}_${vendor.replace(/[^a-zA-Z0-9]/g,"_").substring(0,25)}_${file.name}`;
-  const endpoint = `https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${safeName}:/content`;
+  const safeName = `${dateStr}_${vendor.replace(/[^a-zA-Z0-9]/g,"_").substring(0,25)}_${Date.now()}.jpg`;
+  const endpoint = `https://graph.microsoft.com/v1.0/me/drive/root:/${RECEIPT_PATH}/${safeName}:/content`;
 
-  showProgress(10, "Creating OneDrive folder...");
-  await fetch(`https://graph.microsoft.com/v1.0/me/drive/root/children`, {
+  // Ensure Receipts folder exists (ignore error if already exists)
+  showProgress(10, "Preparing Receipts folder...");
+  await gFetch("/me/drive/root:/Documents/ExpenseTracker:/children", {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ name: ONEDRIVE_FOLDER, folder: {}, "@microsoft.graph.conflictBehavior": "rename" })
-  });
+    body: JSON.stringify({ name: "Receipts", folder: {}, "@microsoft.graph.conflictBehavior": "fail" })
+  }).catch(() => {});
 
   showProgress(30, "Uploading receipt...");
+  const upToken = await getGraphToken();
   const uploadRes = await fetch(endpoint, {
     method: "PUT",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": file.type || "application/octet-stream" },
+    headers: { Authorization: `Bearer ${upToken}`, "Content-Type": "image/jpeg" },
     body: file
   });
-  if (!uploadRes.ok) throw new Error("Upload failed: " + uploadRes.statusText);
+  const upText = await uploadRes.text();
+  if (!uploadRes.ok) {
+    let msg = `Upload failed HTTP ${uploadRes.status}`;
+    try { const j = JSON.parse(upText); msg = j.error?.message || msg; } catch(e) {}
+    throw new Error(msg);
+  }
 
   showProgress(75, "Getting shareable link...");
-  const fileData = await uploadRes.json();
+  const fileData = JSON.parse(upText);
 
   const shareRes = await fetch(
     `https://graph.microsoft.com/v1.0/me/drive/items/${fileData.id}/createLink`,
@@ -703,8 +699,12 @@ async function openCamera() {
     stopCamera();
     document.getElementById("previewWrap").classList.remove("show");
     receiptFile = null;
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
     cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } }, audio: false
+      video: isMobile
+        ? { facingMode: { ideal: "environment" }, width: { ideal: 1920 } }
+        : { width: { ideal: 1920 } },
+      audio: false
     });
     const video = document.getElementById("camVideo");
     video.srcObject = cameraStream; video.style.display = "block";
@@ -794,7 +794,7 @@ function calcTotal() {
 
 // ── EXCEL CONFIG ─────────────────────────────────────────────────────────────
 const EXCEL_PATH    = "Documents/ExpenseTracker/Expenses.xlsx";
-const EXCEL_HEADERS = ["Date","Category","Vendor","Paid By","Description","Amount ($)","Tax ($)","Total ($)","Approved By","Receipt Link"];
+const EXCEL_HEADERS = ["Date","Category","Vendor","Paid_By","Description","Amount","Tax","Total_Amount","Receipt_Link"];
 
 // ── SAFE GRAPH FETCH ──────────────────────────────────────────────────────────
 async function gFetch(path, opts = {}) {
@@ -841,7 +841,7 @@ async function appendRowToExcel(row) {
     const a1Val = JSON.parse(await (await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1')`, { headers: h })).text()).values?.[0]?.[0] || "";
     let nextRow = 2;
     if (!a1Val.toString().trim()) {
-      await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1:J1')`, {
+      await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1:I1')`, {
         method: "PATCH", headers: h, body: JSON.stringify({ values: [EXCEL_HEADERS] })
       });
     } else {
@@ -849,7 +849,7 @@ async function appendRowToExcel(row) {
       nextRow = (usedData.rowCount || 1) + 1;
     }
 
-    const writeRes  = await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A${nextRow}:J${nextRow}')`, {
+    const writeRes  = await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A${nextRow}:I${nextRow}')`, {
       method: "PATCH", headers: h, body: JSON.stringify({ values: [row] })
     });
     const writeText = await writeRes.text();
@@ -900,7 +900,6 @@ async function submitForm() {
       amount.toFixed(2),
       tax.toFixed(2),
       total,
-      document.getElementById("approvedBy").value.trim(),
       receiptLink,
     ];
     await appendRowToExcel(row);
@@ -919,7 +918,7 @@ async function submitForm() {
 }
 
 function clearForm() {
-  ["description","approvedBy"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("description").value = "";
   document.getElementById("amount").value      = "";
   document.getElementById("tax").value         = "";
   document.getElementById("vendor").value      = "";
