@@ -359,7 +359,7 @@ input[type="file"]{display:none;}
         <div class="field">
           <label>Date <span class="req">*</span></label>
           <input type="date" id="date"/>
-          <div class="hint">Defaults to today — tap to change</div>
+          <div class="hint">Auto-set to today — tap to change</div>
         </div>
         <div class="field">
           <label>Category <span class="req">*</span></label>
@@ -390,9 +390,7 @@ input[type="file"]{display:none;}
           <label>Description</label>
           <textarea id="description" placeholder="e.g. Weekly produce order"></textarea>
         </div>
-        <select id="payment">
-          <option value="">— Paid By —</option>
-        </select>
+
       </div>
     </div>
 
@@ -452,7 +450,7 @@ input[type="file"]{display:none;}
       <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Additional Info</div></div>
       <div class="card-body">
         <div class="field">
-          <label>Entered By</label>
+          <label>Approved By</label>
           <input type="text" id="approvedBy" placeholder="Manager name"/>
         </div>
         <div class="row2">
@@ -500,32 +498,11 @@ input[type="file"]{display:none;}
 // ╠══════════════════════════════════════════════════════════════════════════╣
 
 const VENDORS = [
-  "A1Cash&Carry",
-  "Amazon",
-  "Bank",
-  "BestBuy",
-  "Bluehost",
-  "Buga",
-  "ButcherShoppe",
-  "CanadianTire",
-  "ChefCo",
-  "ChefsDepot",
-  "Cooperators",
-  "Costco",
-  "CostcoGas",
-  "CostcoTires",
-  "Dayco",
-  "Dollarama",
-  "FoodsUp",
-  "Fuel",
-  "HomeDepot",
-  "Nella",
-  "MVR",
-  "PriceGroup",
-  "PrincessAuto",
-  "TorontoBuns",
-  "Walmart",
-  "WholesaleClub",
+  "Fresh Fields Co.",
+  "Sysco",
+  "Gordon Food Service",
+  "Restaurant Depot",
+  "Local Farm Supply",
 ];
 
 const PAID_BY = [
@@ -546,7 +523,6 @@ const CATEGORIES = {
   "Insurance":            ["General Liability","Workers Comp","Property Insurance","Business Interruption"],
   "Miscellaneous":        ["Bank Fees","Office Supplies","Training","Legal / Accounting","Other"],
 };
-
 
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
@@ -577,11 +553,6 @@ function populateDropdowns() {
   const catSel = document.getElementById("category");
   Object.keys(CATEGORIES).forEach(c => {
     const o = document.createElement("option"); o.value = o.text = c; catSel.appendChild(o);
-  });
-
-  const paymentSel = document.getElementById("payment");
-  PAID_BY.forEach(p => {
-    const o = document.createElement("option"); o.value = o.text = p; paymentSel.appendChild(o);
   });
 
   const paidBySel = document.getElementById("submittedBy");
@@ -735,10 +706,9 @@ async function submitForm() {
   const date     = document.getElementById("date").value;
   const category = document.getElementById("category").value;
   const vendor   = document.getElementById("vendor").value.trim();
-  const payment  = document.getElementById("payment").value;
   const amount   = parseFloat(document.getElementById("amount").value) || 0;
 
-  if (!date || !category || !vendor || !payment || amount <= 0) {
+  if (!date || !category || !vendor || amount <= 0) {
     showToast("⚠ Fill in all required fields", "err"); return;
   }
 
@@ -763,7 +733,6 @@ async function submitForm() {
       subcategory : document.getElementById("subcategory").value,
       vendor      : vendor,
       description : document.getElementById("description").value.trim(),
-      payment     : payment,
       amount      : amount.toFixed(2),
       tax         : (parseFloat(document.getElementById("tax").value) || 0).toFixed(2),
       approvedBy  : document.getElementById("approvedBy").value.trim(),
@@ -799,7 +768,6 @@ function clearForm() {
   document.getElementById("tax").value         = "";
   document.getElementById("vendor").value      = "";
   document.getElementById("category").value    = "";
-  document.getElementById("payment").value     = "";
   document.getElementById("submittedBy").value = "";
   document.getElementById("subcategory").innerHTML = '<option value="">— Select category first —</option>';
   document.getElementById("totalDisplay").textContent = "$0.00";
