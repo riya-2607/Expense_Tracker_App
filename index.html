@@ -237,6 +237,14 @@ input[type="file"]{display:none;}
 .cam-action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
 .cam-action-row .cap-btn{display:none;}
 .cam-action-row .cap-btn.show{display:flex;}
+/* ── DEBUG PANEL ──────────────────────────────────────────────────────────── */
+#debugPanel{background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:12px 14px;margin-top:12px;display:none;}
+#debugPanel.show{display:block;}
+#debugTitle{font-size:11px;font-weight:600;color:#58a6ff;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+#debugLog{font-family:monospace;font-size:11px;line-height:1.7;color:#c9d1d9;max-height:220px;overflow-y:auto;}
+#debugLog .ok{color:#3fb950;}
+#debugLog .err{color:#f85149;}
+#debugLog .info{color:#d29922;}
 
 
 /* ── UPLOAD PROGRESS ──────────────────────────────────────────────────────── */
@@ -341,7 +349,7 @@ input[type="file"]{display:none;}
   <!-- SIGN-IN WALL (shown until authenticated) -->
   <div id="signInWall">
     <h2>Sign in to continue</h2>
-    <p>Use your Microsoft account to save expenses and receipts directly to your OneDrive — no Google account needed.</p>
+    <p>Use your Microsoft account to save expenses and receipts directly to your OneDrive.</p>
     <button class="ms-btn" onclick="signIn()">
       <svg class="ms-logo" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
         <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
@@ -532,12 +540,17 @@ input[type="file"]{display:none;}
     <button class="btn-another" onclick="resetForm()">Add Another</button>
   </div>
 
+  <!-- DEBUG PANEL -->
+  <div id="debugPanel">
+    <div id="debugTitle">📋 Submit Log</div>
+    <div id="debugLog"></div>
+  </div>
 </div><!-- /wrap -->
 
 <div class="toast" id="toast"></div>
 
 <script>
-// ── CONFIG ────────────────────────────────────────────────────────────────────
+// ── CONFIG — paths match your actual OneDrive structure ───────────────────────
 const MSAL_CONFIG = {
   auth: {
     clientId:    "4151be33-2fa1-466d-b734-b4fa2babc4da",
@@ -546,9 +559,10 @@ const MSAL_CONFIG = {
   },
   cache: { cacheLocation: "localStorage" }
 };
-const ONEDRIVE_FOLDER = "Restaurant Receipts";
-const EXCEL_PATH      = "Restaurant Receipts/Expenses.xlsx";
-const EXCEL_HEADERS   = ["Date","Category","Sub-Category","Vendor","Description","Payment","Amount ($)","Tax ($)","Total ($)","Approved By","Receipt #","Submitted By","Receipt Link"];
+// These paths MUST match exactly what is in your OneDrive
+const EXCEL_PATH    = "Documents/ExpenseTracker/Expenses.xlsx";   // existing file you created
+const RECEIPT_FOLDER = "Documents/ExpenseTracker/Receipts";       // folder for photos (auto-created)
+const EXCEL_SHEET   = "Sheet1";                                    // default sheet name in a new xlsx
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let msalInstance   = null;
@@ -570,6 +584,20 @@ const SUBCATS = {
   "Miscellaneous":        ["Bank Fees","Office Supplies","Training","Legal / Accounting","Other"]
 };
 
+// ── DEBUG LOGGER ──────────────────────────────────────────────────────────────
+function dbg(msg, type = "info") {
+  const panel = document.getElementById("debugPanel");
+  const log   = document.getElementById("debugLog");
+  panel.classList.add("show");
+  const line = document.createElement("div");
+  line.className = type;
+  const ts = new Date().toLocaleTimeString();
+  line.textContent = `[${ts}] ${msg}`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+  console.log(`[${type}]`, msg);
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 (async function init() {
   try {
@@ -589,7 +617,7 @@ function setToday() {
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 async function signIn() {
-  if (typeof msal === "undefined") { showToast("❌ Login library failed to load. Try disabling ad blockers.", "err"); return; }
+  if (typeof msal === "undefined") { showToast("❌ Login library failed. Try disabling ad blockers.", "err"); return; }
   try {
     if (!msalInstance) { msalInstance = new msal.PublicClientApplication(MSAL_CONFIG); await msalInstance.initialize(); }
     const result = await msalInstance.loginPopup({ scopes: ["User.Read","Files.ReadWrite"] });
@@ -611,152 +639,142 @@ function showSignedIn(account) {
   document.getElementById("userBar").classList.add("show");
 }
 
-// ── GRAPH TOKEN ───────────────────────────────────────────────────────────────
+// ── TOKEN ─────────────────────────────────────────────────────────────────────
 async function getToken() {
   const req = { scopes: ["Files.ReadWrite"], account: currentAccount };
   try { return (await msalInstance.acquireTokenSilent(req)).accessToken; }
   catch(e) { return (await msalInstance.acquireTokenPopup(req)).accessToken; }
 }
 
-// ── SAFE GRAPH FETCH ──────────────────────────────────────────────────────────
-// Always reads response as text first — never assumes JSON — so an HTML error
-// page never triggers "Unexpected token '<'" in JSON.parse.
+// ── SAFE FETCH — reads text first, never blindly calls .json() ────────────────
 async function gFetch(path, opts = {}) {
   const token = await getToken();
   const url   = path.startsWith("http") ? path : "https://graph.microsoft.com/v1.0" + path;
   const res   = await fetch(url, {
     ...opts,
-    headers: {
-      "Authorization": "Bearer " + token,
-      "Content-Type":  "application/json",
-      ...(opts.headers || {})
-    }
+    headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json", ...(opts.headers || {}) }
   });
   const text = await res.text();
   if (!res.ok) {
-    // Try to extract a meaningful message from JSON error body
-    try { const j = JSON.parse(text); throw new Error(j.error?.message || j.error?.code || text.substring(0,120)); }
-    catch(e) { if (e instanceof SyntaxError) throw new Error("HTTP " + res.status + ": " + text.substring(0,120)); throw e; }
+    let msg = `HTTP ${res.status}`;
+    try { const j = JSON.parse(text); msg = j.error?.message || j.error?.code || msg; } catch(e) {}
+    throw new Error(msg);
   }
   if (!text || res.status === 204) return null;
   return JSON.parse(text);
 }
 
-async function gPut(path, body, contentType) {
-  const token = await getToken();
-  const url   = path.startsWith("http") ? path : "https://graph.microsoft.com/v1.0" + path;
-  const res   = await fetch(url, {
-    method: "PUT",
-    headers: { "Authorization": "Bearer " + token, "Content-Type": contentType },
-    body
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    try { const j = JSON.parse(text); throw new Error(j.error?.message || "Upload failed"); }
-    catch(e) { if (e instanceof SyntaxError) throw new Error("Upload HTTP " + res.status); throw e; }
-  }
-  return text ? JSON.parse(text) : null;
-}
-
-// ── ENSURE FOLDER ─────────────────────────────────────────────────────────────
-async function ensureFolder() {
-  // Check if folder exists first — avoids triggering a conflict error
+// ── ENSURE RECEIPTS FOLDER ────────────────────────────────────────────────────
+async function ensureReceiptFolder() {
+  dbg(`Checking receipt folder: ${RECEIPT_FOLDER}`);
   try {
-    await gFetch(`/me/drive/root:/${ONEDRIVE_FOLDER}`);
-    return; // exists
+    await gFetch(`/me/drive/root:/${RECEIPT_FOLDER}`);
+    dbg("Receipt folder exists", "ok");
   } catch(e) {
-    // Doesn't exist — create it
-    await gFetch("/me/drive/root/children", {
+    dbg("Creating receipt folder...", "info");
+    // Create nested path: Documents/ExpenseTracker must already exist (it does — xlsx is there)
+    await gFetch(`/me/drive/root:/Documents/ExpenseTracker:/children`, {
       method: "POST",
-      body: JSON.stringify({ name: ONEDRIVE_FOLDER, folder: {}, "@microsoft.graph.conflictBehavior": "fail" })
+      body: JSON.stringify({ name: "Receipts", folder: {}, "@microsoft.graph.conflictBehavior": "fail" })
+    }).catch(e2 => {
+      if (!e2.message.includes("nameAlreadyExists") && !e2.message.includes("itemAlreadyExists")) throw e2;
     });
+    dbg("Receipt folder created", "ok");
   }
 }
 
-// ── ENSURE EXCEL FILE ─────────────────────────────────────────────────────────
-async function ensureExcelFile() {
-  try {
-    await gFetch(`/me/drive/root:/${EXCEL_PATH}`);
-    return; // already exists
-  } catch(e) {
-    // Build minimal xlsx with SheetJS
-    await loadSheetJS();
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([EXCEL_HEADERS]);
-    ws["!cols"] = EXCEL_HEADERS.map((h, i) => ({ wch: i === 12 ? 60 : Math.max(h.length + 4, 16) }));
-    XLSX.utils.book_append_sheet(wb, ws, "Expenses");
-    const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    await gPut(
-      `/me/drive/root:/${EXCEL_PATH}:/content`,
-      new Blob([out]),
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-  }
+// ── DETECT SHEET NAME ─────────────────────────────────────────────────────────
+async function getSheetName(token, sid) {
+  const base = "https://graph.microsoft.com/v1.0";
+  const h    = { "Authorization": "Bearer " + token, "Content-Type": "application/json", "workbook-session-id": sid };
+  const res  = await fetch(`${base}/me/drive/root:/${EXCEL_PATH}:/workbook/worksheets`, { headers: h });
+  const text = await res.text();
+  if (!res.ok) throw new Error("Cannot list worksheets: " + text.substring(0,120));
+  const data = JSON.parse(text);
+  const name = data.value?.[0]?.name;
+  dbg(`Sheet name detected: "${name}"`, "ok");
+  return name;
 }
 
-// ── LAZY LOAD SheetJS ─────────────────────────────────────────────────────────
-function loadSheetJS() {
-  return new Promise((resolve, reject) => {
-    if (window.XLSX) { resolve(); return; }
-    const s = document.createElement("script");
-    s.src     = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
-    s.onload  = resolve;
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
-
-// ── APPEND ROW VIA WORKBOOK SESSION ──────────────────────────────────────────
+// ── APPEND ROW TO EXCEL ───────────────────────────────────────────────────────
 async function appendRowToExcel(row) {
-  const token   = await getToken();
-  const base    = "https://graph.microsoft.com/v1.0";
-  const filePath = `/me/drive/root:/${EXCEL_PATH}`;
+  const token = await getToken();
+  const base  = "https://graph.microsoft.com/v1.0";
+  const fp    = `/me/drive/root:/${EXCEL_PATH}`;
 
-  // Open workbook session
-  const sessRes  = await fetch(`${base}${filePath}:/workbook/createSession`, {
+  dbg("Opening workbook session...");
+  const sessRes  = await fetch(`${base}${fp}:/workbook/createSession`, {
     method: "POST",
     headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
     body: JSON.stringify({ persistChanges: true })
   });
   const sessText = await sessRes.text();
   if (!sessRes.ok) {
-    try { const j = JSON.parse(sessText); throw new Error(j.error?.message || "Cannot open workbook"); }
-    catch(e) { if (e instanceof SyntaxError) throw new Error("Cannot open workbook: HTTP " + sessRes.status); throw e; }
+    let msg = `Session open failed HTTP ${sessRes.status}`;
+    try { const j = JSON.parse(sessText); msg = j.error?.message || msg; } catch(e) {}
+    throw new Error(msg);
   }
   const { id: sid } = JSON.parse(sessText);
+  dbg("Session opened: " + sid.substring(0,20) + "...", "ok");
+
   const h = { "Authorization": "Bearer " + token, "Content-Type": "application/json", "workbook-session-id": sid };
 
   try {
-    // Find next empty row
-    const usedRes  = await fetch(`${base}${filePath}:/workbook/worksheets('Expenses')/usedRange`, { headers: h });
-    const usedText = await usedRes.text();
-    let nextRow = 2;
-    if (usedRes.ok && usedText) {
-      const usedData = JSON.parse(usedText);
-      nextRow = (usedData.rowCount || 1) + 1;
-    }
+    // Detect actual sheet name (handles Sheet1, Expenses, etc.)
+    const sheetName = await getSheetName(token, sid);
 
-    // Write row
+    // Check if header row exists — if not, write it first
+    dbg("Checking for header row...");
+    const a1Res  = await fetch(`${base}${fp}:/workbook/worksheets('${encodeURIComponent(sheetName)}')/range(address='A1')`, { headers: h });
+    const a1Text = await a1Res.text();
+    const a1Data = JSON.parse(a1Text);
+    const a1Val  = a1Data.values?.[0]?.[0] || "";
+    dbg(`A1 value: "${a1Val}"`);
+
+    let nextRow = 2;
+    if (!a1Val || a1Val.toString().trim() === "") {
+      // Empty sheet — write headers first
+      dbg("Writing header row...");
+      const headers = ["Date","Category","Sub-Category","Vendor","Description","Payment","Amount ($)","Tax ($)","Total ($)","Approved By","Receipt #","Submitted By","Receipt Link"];
+      await fetch(`${base}${fp}:/workbook/worksheets('${encodeURIComponent(sheetName)}')/range(address='A1:M1')`, {
+        method: "PATCH", headers: h, body: JSON.stringify({ values: [headers] })
+      });
+      nextRow = 2;
+    } else {
+      // Find used range to get next row
+      const usedRes  = await fetch(`${base}${fp}:/workbook/worksheets('${encodeURIComponent(sheetName)}')/usedRange`, { headers: h });
+      const usedText = await usedRes.text();
+      if (usedRes.ok && usedText) {
+        const usedData = JSON.parse(usedText);
+        nextRow = (usedData.rowCount || 1) + 1;
+      }
+    }
+    dbg(`Writing data to row ${nextRow}...`);
+
     const range    = `A${nextRow}:M${nextRow}`;
-    const writeRes = await fetch(`${base}${filePath}:/workbook/worksheets('Expenses')/range(address='${range}')`, {
+    const writeRes = await fetch(`${base}${fp}:/workbook/worksheets('${encodeURIComponent(sheetName)}')/range(address='${range}')`, {
       method: "PATCH", headers: h, body: JSON.stringify({ values: [row] })
     });
     const writeText = await writeRes.text();
     if (!writeRes.ok) {
-      try { const j = JSON.parse(writeText); throw new Error(j.error?.message || "Write failed"); }
-      catch(e) { if (e instanceof SyntaxError) throw new Error("Write failed: HTTP " + writeRes.status); throw e; }
+      let msg = `Write failed HTTP ${writeRes.status}`;
+      try { const j = JSON.parse(writeText); msg = j.error?.message || msg; } catch(e) {}
+      throw new Error(msg);
     }
+    dbg(`Row written to ${range}`, "ok");
+
   } finally {
-    // Always close session
-    await fetch(`${base}${filePath}:/workbook/closeSession`, { method: "POST", headers: h }).catch(() => {});
+    await fetch(`${base}${fp}:/workbook/closeSession`, { method: "POST", headers: h }).catch(() => {});
+    dbg("Session closed", "ok");
   }
 }
 
-// ── UPLOAD RECEIPT ────────────────────────────────────────────────────────────
+// ── UPLOAD RECEIPT PHOTO ──────────────────────────────────────────────────────
 async function uploadReceiptToOneDrive(file, date, vendor) {
   const token    = await getToken();
   const safeName = `${date}_${vendor.replace(/[^a-zA-Z0-9]/g,"_").substring(0,25)}_${Date.now()}.jpg`;
-  const endpoint = `https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${safeName}:/content`;
+  const endpoint = `https://graph.microsoft.com/v1.0/me/drive/root:/${RECEIPT_FOLDER}/${safeName}:/content`;
+  dbg(`Uploading photo: ${safeName}`);
 
   showProgress(30, "Uploading receipt photo...");
   const upRes  = await fetch(endpoint, {
@@ -766,10 +784,12 @@ async function uploadReceiptToOneDrive(file, date, vendor) {
   });
   const upText = await upRes.text();
   if (!upRes.ok) {
-    try { const j = JSON.parse(upText); throw new Error(j.error?.message || "Receipt upload failed"); }
-    catch(e) { if (e instanceof SyntaxError) throw new Error("Receipt upload failed: HTTP " + upRes.status); throw e; }
+    let msg = `Photo upload failed HTTP ${upRes.status}`;
+    try { const j = JSON.parse(upText); msg = j.error?.message || msg; } catch(e) {}
+    throw new Error(msg);
   }
   const fileData = JSON.parse(upText);
+  dbg("Photo uploaded: " + fileData.id.substring(0,20) + "...", "ok");
 
   showProgress(70, "Creating shareable link...");
   const linkRes  = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileData.id}/createLink`, {
@@ -780,7 +800,9 @@ async function uploadReceiptToOneDrive(file, date, vendor) {
   const linkText = await linkRes.text();
   if (linkRes.ok && linkText) {
     const linkData = JSON.parse(linkText);
-    return linkData.link?.webUrl || fileData.webUrl || "";
+    const url = linkData.link?.webUrl || fileData.webUrl || "";
+    dbg("Shareable link created", "ok");
+    return url;
   }
   return fileData.webUrl || "";
 }
@@ -896,15 +918,19 @@ function calcTotal() {
 
 // ── SUBMIT ────────────────────────────────────────────────────────────────────
 async function submitForm() {
-  const date    = document.getElementById("date").value;
+  const date     = document.getElementById("date").value;
   const category = document.getElementById("category").value;
-  const vendor  = document.getElementById("vendor").value.trim();
-  const payment = document.getElementById("payment").value;
-  const amount  = parseFloat(document.getElementById("amount").value) || 0;
+  const vendor   = document.getElementById("vendor").value.trim();
+  const payment  = document.getElementById("payment").value;
+  const amount   = parseFloat(document.getElementById("amount").value) || 0;
 
   if (!date || !category || !vendor || !payment || amount <= 0) {
     showToast("⚠ Fill in all required fields", "err"); return;
   }
+
+  // Clear previous debug log
+  document.getElementById("debugLog").innerHTML = "";
+  document.getElementById("debugPanel").classList.add("show");
 
   const btn = document.getElementById("submitBtn");
   const lbl = document.getElementById("submitLabel");
@@ -912,18 +938,24 @@ async function submitForm() {
   lbl.innerHTML = '<div class="spinner"></div> Saving...';
 
   try {
-    showProgress(5, "Preparing OneDrive...");
-    await ensureFolder();
-    await ensureExcelFile();
+    dbg("Starting submit...");
 
+    // 1. Ensure receipt folder exists
+    showProgress(5, "Checking OneDrive folders...");
+    await ensureReceiptFolder();
+
+    // 2. Upload receipt photo if present
     let receiptLink = "";
     if (receiptFile) {
       receiptLink = await uploadReceiptToOneDrive(receiptFile, date, vendor);
-      showProgress(85, "Receipt uploaded!");
-      await new Promise(r => setTimeout(r, 400));
+      showProgress(80, "Receipt uploaded!");
+      await new Promise(r => setTimeout(r, 300));
+    } else {
+      dbg("No receipt photo — skipping upload", "info");
     }
 
-    showProgress(90, "Writing to Excel...");
+    // 3. Append row to Excel
+    showProgress(88, "Writing to Excel...");
     const tax   = parseFloat(document.getElementById("tax").value) || 0;
     const total = (amount + tax).toFixed(2);
     const row = [
@@ -938,11 +970,13 @@ async function submitForm() {
       document.getElementById("submittedBy").value.trim(),
       receiptLink
     ];
+    dbg("Row: " + JSON.stringify(row).substring(0, 80) + "...");
     await appendRowToExcel(row);
 
     showProgress(100, "Done!");
     await new Promise(r => setTimeout(r, 400));
     hideProgress();
+    dbg("All done!", "ok");
 
     document.getElementById("successMsg").innerHTML =
       `Total $${total} saved to <strong>Expenses.xlsx</strong> in OneDrive.${receiptLink ? "<br>Receipt photo uploaded &amp; linked." : ""}`;
@@ -951,6 +985,7 @@ async function submitForm() {
 
   } catch(err) {
     hideProgress();
+    dbg("ERROR: " + err.message, "err");
     showToast("❌ " + err.message, "err");
   } finally {
     btn.disabled = false;
