@@ -522,18 +522,16 @@ const VENDORS = [
 ];
 
 const CATEGORIES = [
-  "Supplies",
-  "VehicleRelated",
-  "Rent",
+  "Food & Beverage",
+  "Labour",
+  "Occupancy",
   "Utilities",
   "Marketing",
-  "Equipment",
+  "Supplies & Equipment",
   "Maintenance",
   "Technology",
   "Insurance",
   "Miscellaneous",
-  "Packaging",
-  "Banking&Fees",
 ];
 
 // ╚══════════════════════════════════════════════════════════════════════════╝
@@ -706,6 +704,77 @@ function calcTotal() {
     "$" + (a + t).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
+// ── EXCEL CONFIG ─────────────────────────────────────────────────────────────
+const EXCEL_PATH    = "Documents/ExpenseTracker/Expenses.xlsx";
+const EXCEL_HEADERS = ["Date","Category","Vendor","Paid By","Description","Amount ($)","Tax ($)","Total ($)","Approved By","Receipt Link"];
+
+// ── SAFE GRAPH FETCH ──────────────────────────────────────────────────────────
+async function gFetch(path, opts = {}) {
+  const token = await getGraphToken();
+  const url   = path.startsWith("http") ? path : "https://graph.microsoft.com/v1.0" + path;
+  const res   = await fetch(url, {
+    ...opts,
+    headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json", ...(opts.headers||{}) }
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = JSON.parse(text); msg = j.error?.message || j.error?.code || msg; } catch(e) {}
+    throw new Error(msg);
+  }
+  return (!text || res.status === 204) ? null : JSON.parse(text);
+}
+
+// ── APPEND ROW TO EXCEL ───────────────────────────────────────────────────────
+async function appendRowToExcel(row) {
+  const token = await getGraphToken();
+  const base  = "https://graph.microsoft.com/v1.0";
+  const fp    = `/me/drive/root:/${EXCEL_PATH}`;
+
+  const sessRes  = await fetch(`${base}${fp}:/workbook/createSession`, {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify({ persistChanges: true })
+  });
+  const sessText = await sessRes.text();
+  if (!sessRes.ok) {
+    let msg = `Cannot open workbook (HTTP ${sessRes.status}). Check Expenses.xlsx is at Documents/ExpenseTracker/`;
+    try { const j = JSON.parse(sessText); msg = j.error?.message || msg; } catch(e) {}
+    throw new Error(msg);
+  }
+  const { id: sid } = JSON.parse(sessText);
+  const h = { "Authorization": "Bearer " + token, "Content-Type": "application/json", "workbook-session-id": sid };
+
+  try {
+    const wsText    = await (await fetch(`${base}${fp}:/workbook/worksheets`, { headers: h })).text();
+    const sheetName = JSON.parse(wsText).value?.[0]?.name || "Sheet1";
+    const enc       = encodeURIComponent(sheetName);
+
+    const a1Val = JSON.parse(await (await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1')`, { headers: h })).text()).values?.[0]?.[0] || "";
+    let nextRow = 2;
+    if (!a1Val.toString().trim()) {
+      await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1:J1')`, {
+        method: "PATCH", headers: h, body: JSON.stringify({ values: [EXCEL_HEADERS] })
+      });
+    } else {
+      const usedData = JSON.parse(await (await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/usedRange`, { headers: h })).text());
+      nextRow = (usedData.rowCount || 1) + 1;
+    }
+
+    const writeRes  = await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A${nextRow}:J${nextRow}')`, {
+      method: "PATCH", headers: h, body: JSON.stringify({ values: [row] })
+    });
+    const writeText = await writeRes.text();
+    if (!writeRes.ok) {
+      let msg = `Write failed HTTP ${writeRes.status}`;
+      try { const j = JSON.parse(writeText); msg = j.error?.message || msg; } catch(e) {}
+      throw new Error(msg);
+    }
+  } finally {
+    await fetch(`${base}${fp}:/workbook/closeSession`, { method: "POST", headers: h }).catch(() => {});
+  }
+}
+
 // ── SUBMIT ────────────────────────────────────────────────────────────────────
 async function submitForm() {
   const date     = document.getElementById("date").value;
@@ -731,31 +800,27 @@ async function submitForm() {
       hideProgress();
     }
 
-    label.innerHTML = '<div class="spinner"></div> Writing to Sheet...';
-    const payload = {
-      date        : date,
-      category    : category,
-      vendor      : vendor,
-      paidBy      : document.getElementById("paidBy").value.trim(),
-      description : document.getElementById("description").value.trim(),
-      amount      : amount.toFixed(2),
-      tax         : (parseFloat(document.getElementById("tax").value) || 0).toFixed(2),
-      approvedBy  : document.getElementById("approvedBy").value.trim(),
-      receiptLink : receiptLink,
-    };
+    label.innerHTML = '<div class="spinner"></div> Writing to Excel...';
+    const tax   = parseFloat(document.getElementById("tax").value) || 0;
+    const total = (amount + tax).toFixed(2);
+    const row = [
+      date,
+      category,
+      vendor,
+      document.getElementById("paidBy").value.trim(),
+      document.getElementById("description").value.trim(),
+      amount.toFixed(2),
+      tax.toFixed(2),
+      total,
+      document.getElementById("approvedBy").value.trim(),
+      receiptLink,
+    ];
+    await appendRowToExcel(row);
 
-    const res  = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
-    const data = await res.json();
-
-    if (data.success) {
-      const total = (parseFloat(payload.amount) + parseFloat(payload.tax)).toFixed(2);
-      document.getElementById("successMsg").innerHTML =
-        `Total $${total} saved.${receiptLink ? "<br>Receipt uploaded to OneDrive." : ""}`;
-      document.getElementById("formWrap").style.display    = "none";
-      document.getElementById("successScreen").classList.add("show");
-    } else {
-      throw new Error(data.error || "Unknown error from server");
-    }
+    document.getElementById("successMsg").innerHTML =
+      `Total $${total} saved to Expenses.xlsx.${receiptLink ? "<br>Receipt uploaded to OneDrive." : ""}`;
+    document.getElementById("formWrap").style.display    = "none";
+    document.getElementById("successScreen").classList.add("show");
 
   } catch(err) {
     showToast("❌ " + err.message, "err");
