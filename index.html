@@ -387,6 +387,12 @@ input[type="file"]{display:none;}
           </select>
         </div>
         <div class="field">
+          <label>Paid By <span class="req">*</span></label>
+          <select id="paidBy">
+            <option value="">— Select —</option>
+          </select>
+        </div>
+        <div class="field">
           <label>Description</label>
           <textarea id="description" placeholder="e.g. Weekly produce order"></textarea>
         </div>
@@ -453,18 +459,7 @@ input[type="file"]{display:none;}
           <label>Approved By</label>
           <input type="text" id="approvedBy" placeholder="Manager name"/>
         </div>
-        <div class="row2">
-          <div class="field">
-            <label>Receipt #</label>
-            <input type="text" id="receiptNo" placeholder="RCP-001"/>
-          </div>
-          <div class="field">
-            <label>Paid By</label>
-            <select id="submittedBy">
-              <option value="">— Select —</option>
-            </select>
-          </div>
-        </div>
+
       </div>
     </div>
 
@@ -497,18 +492,18 @@ input[type="file"]{display:none;}
 // ║  EDIT YOUR OPTIONS HERE — nothing else needs to change                 ║
 // ╠══════════════════════════════════════════════════════════════════════════╣
 
+const PAID_BY = [
+  "Business",
+  "Riya",
+  "Roshan",
+];
+
 const VENDORS = [
   "Fresh Fields Co.",
   "Sysco",
   "Gordon Food Service",
   "Restaurant Depot",
   "Local Farm Supply",
-];
-
-const PAID_BY = [
-  "Business",
-  "Riya",
-  "Roshan",
 ];
 
 const CATEGORIES = {
@@ -545,6 +540,11 @@ let receiptFile    = null;
 
 // ── POPULATE DROPDOWNS ────────────────────────────────────────────────────────
 function populateDropdowns() {
+  const paidBySel = document.getElementById("paidBy");
+  PAID_BY.forEach(p => {
+    const o = document.createElement("option"); o.value = o.text = p; paidBySel.appendChild(o);
+  });
+
   const vendorSel = document.getElementById("vendor");
   VENDORS.forEach(v => {
     const o = document.createElement("option"); o.value = o.text = v; vendorSel.appendChild(o);
@@ -555,10 +555,7 @@ function populateDropdowns() {
     const o = document.createElement("option"); o.value = o.text = c; catSel.appendChild(o);
   });
 
-  const paidBySel = document.getElementById("submittedBy");
-  PAID_BY.forEach(p => {
-    const o = document.createElement("option"); o.value = o.text = p; paidBySel.appendChild(o);
-  });
+
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -732,12 +729,11 @@ async function submitForm() {
       category    : category,
       subcategory : document.getElementById("subcategory").value,
       vendor      : vendor,
+      paidBy      : document.getElementById("paidBy").value.trim(),
       description : document.getElementById("description").value.trim(),
       amount      : amount.toFixed(2),
       tax         : (parseFloat(document.getElementById("tax").value) || 0).toFixed(2),
       approvedBy  : document.getElementById("approvedBy").value.trim(),
-      receiptNo   : document.getElementById("receiptNo").value.trim(),
-      submittedBy : document.getElementById("submittedBy").value.trim(),
       receiptLink : receiptLink,
     };
 
@@ -763,12 +759,12 @@ async function submitForm() {
 }
 
 function clearForm() {
-  ["description","approvedBy","receiptNo"].forEach(id => document.getElementById(id).value = "");
+  ["description","approvedBy"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("amount").value      = "";
   document.getElementById("tax").value         = "";
   document.getElementById("vendor").value      = "";
+  document.getElementById("paidBy").value       = "";
   document.getElementById("category").value    = "";
-  document.getElementById("submittedBy").value = "";
   document.getElementById("subcategory").innerHTML = '<option value="">— Select category first —</option>';
   document.getElementById("totalDisplay").textContent = "$0.00";
   removeImage();
