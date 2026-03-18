@@ -363,16 +363,11 @@ input[type="file"]{display:none;}
         </div>
         <div class="field">
           <label>Category <span class="req">*</span></label>
-          <select id="category" onchange="updateSubcats()">
+          <select id="category">
             <option value="">— Select category —</option>
           </select>
         </div>
-        <div class="field">
-          <label>Sub-Category</label>
-          <select id="subcategory">
-            <option value="">— Select category first —</option>
-          </select>
-        </div>
+
       </div>
     </div>
 
@@ -499,25 +494,45 @@ const PAID_BY = [
 ];
 
 const VENDORS = [
-  "Fresh Fields Co.",
-  "Sysco",
-  "Gordon Food Service",
-  "Restaurant Depot",
-  "Local Farm Supply",
+  "A1Cash&Carry",
+  "Amazon",
+  "BestBuy",
+  "Bluehost",
+  "Buga",
+  "ButcherShoppe",
+  "CanadianTire",
+  "ChefCo",
+  "ChefsDepot",
+  "Cooperators",
+  "Costco",
+  "CostcoTires",
+  "Dayco",
+  "Dollarama",
+  "FoodsUp",
+  "FuelUp",
+  "HomeDepot",
+  "MVR",
+  "Nella",
+  "PriceGroup",
+  "PrincessAuto",
+  "TorontoBuns",
+  "Walmart",
+  "WholesaleClub",
+  "Other",
 ];
 
-const CATEGORIES = {
-  "Food & Beverage":      ["Produce","Meat & Seafood","Dairy","Beverages","Dry Goods","Bakery","Condiments"],
-  "Labour":               ["Kitchen Staff","Front of House","Management","Contract / Casual","Overtime"],
-  "Occupancy":            ["Rent","Property Tax","Common Area Fees"],
-  "Utilities":            ["Electricity","Natural Gas","Water","Internet","Phone"],
-  "Marketing":            ["Social Media","Print / Flyers","Events / Promotions","Photography","PR"],
-  "Supplies & Equipment": ["Smallwares","Uniforms","Cleaning Supplies","Kitchen Equipment","Furniture"],
-  "Maintenance":          ["HVAC","Plumbing","Electrical","Pest Control","General Repairs"],
-  "Technology":           ["POS System","Accounting Software","Website / Online","Security System","Delivery Apps"],
-  "Insurance":            ["General Liability","Workers Comp","Property Insurance","Business Interruption"],
-  "Miscellaneous":        ["Bank Fees","Office Supplies","Training","Legal / Accounting","Other"],
-};
+const CATEGORIES = [
+  "Food & Beverage",
+  "Labour",
+  "Occupancy",
+  "Utilities",
+  "Marketing",
+  "Supplies & Equipment",
+  "Maintenance",
+  "Technology",
+  "Insurance",
+  "Miscellaneous",
+];
 
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
@@ -551,7 +566,7 @@ function populateDropdowns() {
   });
 
   const catSel = document.getElementById("category");
-  Object.keys(CATEGORIES).forEach(c => {
+  CATEGORIES.forEach(c => {
     const o = document.createElement("option"); o.value = o.text = c; catSel.appendChild(o);
   });
 
@@ -682,15 +697,6 @@ function removeImage() {
 }
 
 // ── FORM LOGIC ────────────────────────────────────────────────────────────────
-function updateSubcats() {
-  const cat = document.getElementById("category").value;
-  const sel = document.getElementById("subcategory");
-  sel.innerHTML = '<option value="">— Select sub-category —</option>';
-  (CATEGORIES[cat] || []).forEach(s => {
-    const o = document.createElement("option"); o.value = o.text = s; sel.appendChild(o);
-  });
-}
-
 function calcTotal() {
   const a = parseFloat(document.getElementById("amount").value) || 0;
   const t = parseFloat(document.getElementById("tax").value)    || 0;
@@ -727,7 +733,6 @@ async function submitForm() {
     const payload = {
       date        : date,
       category    : category,
-      subcategory : document.getElementById("subcategory").value,
       vendor      : vendor,
       paidBy      : document.getElementById("paidBy").value.trim(),
       description : document.getElementById("description").value.trim(),
@@ -765,7 +770,6 @@ function clearForm() {
   document.getElementById("vendor").value      = "";
   document.getElementById("paidBy").value       = "";
   document.getElementById("category").value    = "";
-  document.getElementById("subcategory").innerHTML = '<option value="">— Select category first —</option>';
   document.getElementById("totalDisplay").textContent = "$0.00";
   removeImage();
   setToday();
