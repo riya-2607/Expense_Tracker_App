@@ -386,22 +386,23 @@ input[type="file"]{display:none;}
           <label>Category <span class="req">*</span></label>
           <select id="category" onchange="updateSubcats()">
             <option value="">— Select category —</option>
-            <option>Food &amp; Beverage</option>
-            <option>Labour</option>
-            <option>Occupancy</option>
-            <option>Utilities</option>
-            <option>Marketing</option>
-            <option>Supplies &amp; Equipment</option>
-            <option>Maintenance</option>
-            <option>Technology</option>
+            <option>Appliances</option>
+            <option>Bank</option>
+            <option>Fuel</option>
             <option>Insurance</option>
-            <option>Miscellaneous</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Sub-Category</label>
-          <select id="subcategory">
-            <option value="">— Select category first —</option>
+			<option>Legal</option>
+            <option>Marketing</option>
+			<option>Misc</option>
+			<option>PestControl</option>
+            <option>RestaurantSupplies</option>
+            <option>Renovations</option>
+            <option>Rent</option>
+            <option>Research</option>
+			<option>RETURNS</option>
+			<option>Stationary</option>
+            <option>Subscriptions</option>
+			<option>Uniforms</option>
+			<option>Utilities</option>
           </select>
         </div>
       </div>
@@ -412,23 +413,49 @@ input[type="file"]{display:none;}
       <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Vendor & Details</div></div>
       <div class="card-body">
         <div class="field">
-          <label>Vendor / Supplier <span class="req">*</span></label>
-          <input type="text" id="vendor" placeholder="e.g. Fresh Fields Co." autocomplete="off"/>
+          <label>Vendor/Supplier<span class="req">*</span></label>
+	  <select id="payment">
+            <option value="">— Select —</option>
+            <option>A1Cash &amp; Carry</option>
+            <option>Amazon</option>
+            <option>Bank</option>
+			<option>BestBuy</option>
+            <option>Bluehost</option>
+            <option>Buga</option>
+            <option>ButcherShoppe</option>
+			<option>CanadianTire</option>
+            <option>Chefco</option>
+			<option>ChefsDepot</option>
+            <option>Cooperators</option>
+			<option>Costco</option>
+            <option>CostcoGas</option>
+            <option>CostcoTires</option>
+			<option>Dayco</option>
+			<option>Dollarama</option>
+            <option>Enbridge</option>
+			<option>FoodsUp</option>
+			<option>Fuel</option>
+			<option>HomeDepot</option>
+			<option>MVR</option>
+			<option>Nella</option>
+			<option>PrincessAuto</option>
+			<option>TorontoBuns</option>
+			<option>Walmart</option>
+			<option>WholesaleClub</option>
+			<option>Other</option>
+          </select>
         </div>
         <div class="field">
           <label>Description</label>
           <textarea id="description" placeholder="e.g. Weekly produce order"></textarea>
         </div>
         <div class="field">
-          <label>Payment Method <span class="req">*</span></label>
+          <label>Paid By<span class="req">*</span></label>
           <select id="payment">
             <option value="">— Select —</option>
-            <option>Cash</option>
-            <option>Debit Card</option>
-            <option>Credit Card</option>
-            <option>Bank Transfer</option>
-            <option>Cheque</option>
-            <option>Owner Equity</option>
+            <option>Business</option>
+            <option>Riya</option>
+            <option>Roshan</option>
           </select>
         </div>
       </div>
@@ -504,7 +531,7 @@ input[type="file"]{display:none;}
       <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Additional Info</div></div>
       <div class="card-body">
         <div class="field">
-          <label>Approved By</label>
+          <label>Entered By</label>
           <input type="text" id="approvedBy" placeholder="Manager name"/>
         </div>
         <div class="row2">
