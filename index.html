@@ -452,7 +452,7 @@ input[type="file"]{display:none;}
       <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Additional Info</div></div>
       <div class="card-body">
         <div class="field">
-          <label>Approved By</label>
+          <label>Entered By</label>
           <input type="text" id="approvedBy" placeholder="Manager name"/>
         </div>
         <div class="row2">
@@ -580,7 +580,7 @@ function populateDropdowns() {
   });
 
   const paymentSel = document.getElementById("payment");
-  PAYMENT_METHODS.forEach(p => {
+  PAID_BY.forEach(p => {
     const o = document.createElement("option"); o.value = o.text = p; paymentSel.appendChild(o);
   });
 
