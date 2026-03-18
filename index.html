@@ -225,29 +225,17 @@ input[type="file"]{display:none;}
 }
 .preview-name{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;}
 .preview-remove{background:none;border:none;color:var(--danger);font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;}
-
 /* ── LIVE CAMERA ──────────────────────────────────────────────────────────── */
 .camera-viewport{
-  border-radius:10px;overflow:hidden;
-  background:#0a0a0f;
-  aspect-ratio:4/3;
-  position:relative;
-  border:1px solid var(--border2);
-  display:none;
-  margin-bottom:10px;
+  border-radius:10px;overflow:hidden;background:#0a0a0f;
+  aspect-ratio:4/3;position:relative;
+  border:1px solid var(--border2);display:none;margin-bottom:10px;
 }
 .camera-viewport.show{display:block;}
 #camVideo{width:100%;height:100%;object-fit:cover;display:block;}
 #camCanvas{display:none;}
-#camPreviewImg{
-  width:100%;height:100%;object-fit:contain;
-  display:none;position:absolute;inset:0;background:#0a0a0f;
-}
-.cam-placeholder{
-  position:absolute;inset:0;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:8px;color:rgba(240,239,248,.3);pointer-events:none;
-}
+#camPreviewImg{width:100%;height:100%;object-fit:contain;display:none;position:absolute;inset:0;background:#0a0a0f;}
+.cam-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:rgba(240,239,248,.3);pointer-events:none;}
 .cam-placeholder svg{opacity:.5;}
 .cam-placeholder span{font-size:12px;}
 .cam-action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
@@ -351,13 +339,13 @@ input[type="file"]{display:none;}
   <div class="header">
     <div class="header-eyebrow">Restaurant Management</div>
     <h1>Expense Tracker</h1>
-    <p>Saves to Google Sheets · Receipts to OneDrive</p>
+    <p>Saves to OneDrive Excel · Receipts to OneDrive</p>
   </div>
 
   <!-- SIGN-IN WALL (shown until authenticated) -->
   <div id="signInWall">
     <h2>Sign in to continue</h2>
-    <p>Use your Microsoft account to upload receipts directly to your OneDrive. Your expense data goes to Google Sheets.</p>
+    <p>Use your Microsoft account to save expenses and receipts directly to your OneDrive — no Google account needed.</p>
     <button class="ms-btn" onclick="signIn()">
       <svg class="ms-logo" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
         <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
@@ -468,7 +456,6 @@ input[type="file"]{display:none;}
     <div class="card">
       <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Receipt Image</div></div>
       <div class="card-body">
-        <!-- Live camera viewport -->
         <div class="camera-viewport" id="cameraViewport">
           <div class="cam-placeholder" id="camPlaceholder">
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -478,8 +465,6 @@ input[type="file"]{display:none;}
           <canvas id="camCanvas"></canvas>
           <img id="camPreviewImg" alt="Captured receipt"/>
         </div>
-
-        <!-- Camera action buttons (shown/hidden by JS) -->
         <div class="cam-action-row">
           <button type="button" class="cap-btn show" id="btnOpenCamera" onclick="openCamera()">
             <span class="cap-icon">📷</span> Use Camera
@@ -494,9 +479,7 @@ input[type="file"]{display:none;}
             <span class="cap-icon">↩</span> Retake
           </button>
         </div>
-
         <input type="file" id="fileGallery" accept="image/*,application/pdf" onchange="handleFile(this)"/>
-
         <div class="preview-wrap" id="previewWrap">
           <img id="previewImg" src="" alt="Receipt preview"/>
           <div class="preview-meta">
@@ -508,7 +491,7 @@ input[type="file"]{display:none;}
           <div class="progress-label" id="progressLabel">Uploading to OneDrive...</div>
           <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
         </div>
-        <div class="hint" style="margin-top:10px;">Uploaded to OneDrive · link stored in Sheet</div>
+        <div class="hint" style="margin-top:10px;">Uploaded to OneDrive · link saved in Excel</div>
       </div>
     </div>
 
@@ -549,7 +532,7 @@ input[type="file"]{display:none;}
   <div id="successScreen">
     <div class="success-ring">✓</div>
     <div class="success-title">Expense Logged!</div>
-    <div class="success-sub" id="successMsg">Saved to Google Sheets.<br>Receipt uploaded to OneDrive.</div>
+    <div class="success-sub" id="successMsg">Saved to OneDrive Excel.<br>Receipt uploaded to OneDrive.</div>
     <button class="btn-another" onclick="resetForm()">Add Another</button>
   </div>
 
@@ -558,28 +541,26 @@ input[type="file"]{display:none;}
 <div class="toast" id="toast"></div>
 
 <script>
-// ── MSAL CONFIG ──────────────────────────────────────────────────────────────
+// ── CONFIG ────────────────────────────────────────────────────────────────────
 const MSAL_CONFIG = {
   auth: {
     clientId:    "4151be33-2fa1-466d-b734-b4fa2babc4da",
     authority:   "https://login.microsoftonline.com/consumers",
-    redirectUri: "https://riya-2607.github.io/TBM/", // update before deploying
+    redirectUri: "https://riya-2607.github.io/TBM/",
   },
   cache: { cacheLocation: "localStorage" }
 };
+const ONEDRIVE_FOLDER  = "Restaurant Receipts";
+const EXCEL_FILE       = "Restaurant Receipts/Expenses.xlsx";
+const EXCEL_HEADERS    = ["Date","Category","Sub-Category","Vendor","Description","Payment","Amount","Tax","Total","Approved By","Receipt #","Submitted By","Receipt Link"];
 
-// ── APPS SCRIPT ENDPOINT ─────────────────────────────────────────────────────
-const APPS_SCRIPT_URL = "YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
-
-// ── ONEDRIVE FOLDER ──────────────────────────────────────────────────────────
-const ONEDRIVE_FOLDER = "Restaurant Receipts";
-
-// ── MSAL INSTANCE ────────────────────────────────────────────────────────────
-// Declare first, initialize in init()
-let msalInstance = null;
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let msalInstance   = null;
 let currentAccount = null;
+let receiptFile    = null;
+let cameraStream   = null;
 
-// ── SUBCATS ──────────────────────────────────────────────────────────────────
+// ── SUBCATS ───────────────────────────────────────────────────────────────────
 const SUBCATS = {
   "Food & Beverage":      ["Produce","Meat & Seafood","Dairy","Beverages","Dry Goods","Bakery","Condiments"],
   "Labour":               ["Kitchen Staff","Front of House","Management","Contract / Casual","Overtime"],
@@ -593,7 +574,7 @@ const SUBCATS = {
   "Miscellaneous":        ["Bank Fees","Office Supplies","Training","Legal / Accounting","Other"]
 };
 
-// ── INIT ─────────────────────────────────────────────────────────────────────
+// ── INIT ──────────────────────────────────────────────────────────────────────
 (async function init() {
   try {
     msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
@@ -618,7 +599,7 @@ function setToday() {
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 async function signIn() {
   if (typeof msal === "undefined") {
-    showToast("❌ Login library failed to load. Try disabling browser extensions or ad blockers.", "err");
+    showToast("❌ Login library failed to load. Try disabling ad blockers.", "err");
     return;
   }
   try {
@@ -626,23 +607,22 @@ async function signIn() {
       msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
       await msalInstance.initialize();
     }
-    const result = await msalInstance.loginPopup({
-      scopes: ["User.Read", "Files.ReadWrite"]
-    });
+    const result = await msalInstance.loginPopup({ scopes: ["User.Read","Files.ReadWrite"] });
     currentAccount = result.account;
     showSignedIn(currentAccount);
   } catch(e) {
     showToast("Sign-in failed: " + e.message, "err");
   }
 }
+
 function signOut() {
+  stopCamera();
   msalInstance.logoutPopup({ account: currentAccount });
 }
 
 function showSignedIn(account) {
   document.getElementById("signInWall").style.display = "none";
   document.getElementById("formWrap").style.display   = "block";
-
   const name     = account.name || account.username;
   const initials = name.split(" ").map(n => n[0]).join("").substring(0,2).toUpperCase();
   document.getElementById("userInitials").textContent = initials;
@@ -651,51 +631,153 @@ function showSignedIn(account) {
   document.getElementById("userBar").classList.add("show");
 }
 
-// ── GET GRAPH TOKEN ──────────────────────────────────────────────────────────
+// ── GRAPH TOKEN ───────────────────────────────────────────────────────────────
 async function getGraphToken() {
   const request = { scopes: ["Files.ReadWrite"], account: currentAccount };
   try {
-    const result = await msalInstance.acquireTokenSilent(request);
-    return result.accessToken;
+    return (await msalInstance.acquireTokenSilent(request)).accessToken;
   } catch(e) {
-    const result = await msalInstance.acquireTokenPopup(request);
-    return result.accessToken;
+    return (await msalInstance.acquireTokenPopup(request)).accessToken;
   }
 }
 
-// ── UPLOAD RECEIPT TO ONEDRIVE ────────────────────────────────────────────────
-async function uploadToOneDrive(file, dateStr, vendor) {
+// ── GRAPH HELPERS ─────────────────────────────────────────────────────────────
+async function graphRequest(path, options = {}) {
+  const token = await getGraphToken();
+  const res = await fetch("https://graph.microsoft.com/v1.0" + path, {
+    ...options,
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", ...(options.headers || {}) }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || "Graph error " + res.status);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+async function graphPut(path, body, contentType) {
+  const token = await getGraphToken();
+  const res = await fetch("https://graph.microsoft.com/v1.0" + path, {
+    method: "PUT",
+    headers: { Authorization: "Bearer " + token, "Content-Type": contentType },
+    body
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || "Upload error " + res.status);
+  }
+  return res.json();
+}
+
+// ── ENSURE FOLDER EXISTS ──────────────────────────────────────────────────────
+async function ensureFolder() {
+  await graphRequest("/me/drive/root/children", {
+    method: "POST",
+    body: JSON.stringify({ name: ONEDRIVE_FOLDER, folder: {}, "@microsoft.graph.conflictBehavior": "fail" })
+  }).catch(() => {}); // ignore if already exists
+}
+
+// ── ENSURE EXCEL FILE EXISTS ──────────────────────────────────────────────────
+// Uses Graph workbook API to create the file with a header row if it doesn't exist
+async function ensureExcelFile() {
+  try {
+    await graphRequest(`/me/drive/root:/${EXCEL_FILE}`);
+    return; // already exists
+  } catch(e) {
+    // File doesn't exist — create it
+  }
+
+  // Build a minimal valid xlsx using SheetJS (loaded below)
+  await loadSheetJS();
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([EXCEL_HEADERS]);
+  // Column widths
+  ws["!cols"] = EXCEL_HEADERS.map((h, i) => ({ wch: i === 12 ? 60 : Math.max(h.length + 4, 16) }));
+  XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+
+  const token = await getGraphToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${EXCEL_FILE}:/content`, {
+    method: "PUT",
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+    body: new Blob([wbout])
+  });
+  if (!res.ok) throw new Error("Could not create Expenses.xlsx");
+}
+
+// ── LAZY LOAD SheetJS ─────────────────────────────────────────────────────────
+function loadSheetJS() {
+  return new Promise((resolve, reject) => {
+    if (window.XLSX) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+// ── APPEND ROW TO EXCEL ───────────────────────────────────────────────────────
+async function appendRowToExcel(row) {
+  // Use Graph workbook session for reliable append
+  const filePath = `/me/drive/root:/${EXCEL_FILE}`;
+
+  // 1. Open session
+  const session = await graphRequest(`${filePath}:/workbook/createSession`, {
+    method: "POST",
+    body: JSON.stringify({ persistChanges: true })
+  });
+  const sid = session.id;
+  const h = { Authorization: "Bearer " + (await getGraphToken()), "Content-Type": "application/json", "workbook-session-id": sid };
+  const base = "https://graph.microsoft.com/v1.0";
+
+  try {
+    // 2. Get used range to find next empty row
+    const wsRes = await fetch(`${base}${filePath}:/workbook/worksheets('Expenses')/usedRange`, { headers: h });
+    let nextRow = 2;
+    if (wsRes.ok) {
+      const usedRange = await wsRes.json();
+      // rowCount includes header row
+      nextRow = (usedRange.rowCount || 1) + 1;
+    }
+
+    // 3. Write the row
+    const range = `A${nextRow}:M${nextRow}`;
+    await fetch(`${base}${filePath}:/workbook/worksheets('Expenses')/range(address='${range}')`, {
+      method: "PATCH",
+      headers: h,
+      body: JSON.stringify({ values: [row] })
+    });
+
+    // 4. Bold & style header row (only first time, best-effort)
+    if (nextRow === 2) {
+      await fetch(`${base}${filePath}:/workbook/worksheets('Expenses')/range(address='A1:M1')/format/font`, {
+        method: "PATCH", headers: h, body: JSON.stringify({ bold: true })
+      }).catch(() => {});
+    }
+  } finally {
+    // 5. Close session
+    await fetch(`${base}${filePath}:/workbook/closeSession`, { method: "POST", headers: h }).catch(() => {});
+  }
+}
+
+// ── UPLOAD RECEIPT ────────────────────────────────────────────────────────────
+async function uploadReceiptToOneDrive(file, date, vendor) {
   const token    = await getGraphToken();
-  const safeName = `${dateStr}_${vendor.replace(/[^a-zA-Z0-9]/g,"_").substring(0,25)}_${file.name}`;
+  const safeName = `${date}_${vendor.replace(/[^a-zA-Z0-9]/g,"_").substring(0,25)}_${Date.now()}.jpg`;
   const endpoint = `https://graph.microsoft.com/v1.0/me/drive/root:/${ONEDRIVE_FOLDER}/${safeName}:/content`;
 
-  showProgress(10, "Creating OneDrive folder...");
-
-  // Ensure folder exists
-  await fetch(`https://graph.microsoft.com/v1.0/me/drive/root/children`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: ONEDRIVE_FOLDER,
-      folder: {},
-      "@microsoft.graph.conflictBehavior": "rename"
-    })
-  });
-
-  showProgress(30, "Uploading receipt...");
-
+  showProgress(30, "Uploading receipt photo...");
   const uploadRes = await fetch(endpoint, {
     method: "PUT",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": file.type || "application/octet-stream" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": file.type || "image/jpeg" },
     body: file
   });
+  if (!uploadRes.ok) throw new Error("Receipt upload failed: " + uploadRes.statusText);
 
-  if (!uploadRes.ok) throw new Error("Upload failed: " + uploadRes.statusText);
-
-  showProgress(75, "Getting shareable link...");
+  showProgress(70, "Creating shareable link...");
   const fileData = await uploadRes.json();
 
-  // Create sharing link
   const shareRes = await fetch(
     `https://graph.microsoft.com/v1.0/me/drive/items/${fileData.id}/createLink`,
     {
@@ -704,16 +786,14 @@ async function uploadToOneDrive(file, dateStr, vendor) {
       body: JSON.stringify({ type: "view", scope: "anonymous" })
     }
   );
-
-  showProgress(95, "Finalizing...");
   const shareData = await shareRes.json();
-  return shareData.link?.webUrl || fileData.webUrl;
+  return shareData.link?.webUrl || fileData.webUrl || "";
 }
 
-// ── PROGRESS HELPERS ──────────────────────────────────────────────────────────
+// ── PROGRESS ──────────────────────────────────────────────────────────────────
 function showProgress(pct, label) {
   document.getElementById("uploadProgress").classList.add("show");
-  document.getElementById("progressBar").style.width  = pct + "%";
+  document.getElementById("progressBar").style.width   = pct + "%";
   document.getElementById("progressLabel").textContent = label;
 }
 function hideProgress() {
@@ -721,18 +801,68 @@ function hideProgress() {
   document.getElementById("progressBar").style.width = "0%";
 }
 
-// ── RECEIPT FILE HANDLING ─────────────────────────────────────────────────────
-let receiptFile = null;
-let cameraStream = null;
+// ── CAMERA ────────────────────────────────────────────────────────────────────
+async function openCamera() {
+  try {
+    stopCamera();
+    document.getElementById("previewWrap").classList.remove("show");
+    receiptFile = null;
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } }, audio: false
+    });
+    const video = document.getElementById("camVideo");
+    video.srcObject = cameraStream; video.style.display = "block";
+    document.getElementById("camPreviewImg").style.display = "none";
+    document.getElementById("camPlaceholder").style.display = "none";
+    document.getElementById("cameraViewport").classList.add("show");
+    document.getElementById("btnOpenCamera").classList.remove("show");
+    document.getElementById("btnCapture").classList.add("show");
+    document.getElementById("btnRetake").classList.remove("show");
+  } catch(e) { showToast("Camera error: " + e.message, "err"); }
+}
 
-// --- Gallery / file picker ---
+function capturePhoto() {
+  const video = document.getElementById("camVideo");
+  const canvas = document.getElementById("camCanvas");
+  canvas.width = video.videoWidth || 1280;
+  canvas.height = video.videoHeight || 960;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  canvas.toBlob(blob => {
+    stopCamera();
+    const prev = document.getElementById("camPreviewImg");
+    prev.src = URL.createObjectURL(blob); prev.style.display = "block";
+    document.getElementById("camVideo").style.display = "none";
+    document.getElementById("camPlaceholder").style.display = "none";
+    const date   = document.getElementById("date").value || new Date().toISOString().split("T")[0];
+    const vendor = (document.getElementById("vendor").value || "receipt").replace(/[^a-zA-Z0-9]/g,"_").substring(0,20);
+    receiptFile  = new File([blob], `${date}_${vendor}.jpg`, { type: "image/jpeg" });
+    document.getElementById("btnOpenCamera").classList.remove("show");
+    document.getElementById("btnCapture").classList.remove("show");
+    document.getElementById("btnRetake").classList.add("show");
+    showToast("📸 Photo captured — ready to submit", "ok");
+  }, "image/jpeg", 0.93);
+}
+
+function retakePhoto() {
+  receiptFile = null;
+  document.getElementById("camPreviewImg").style.display = "none";
+  document.getElementById("camPlaceholder").style.display = "flex";
+  openCamera();
+}
+
+function stopCamera() {
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  const v = document.getElementById("camVideo");
+  if (v) { v.srcObject = null; v.style.display = "none"; }
+}
+
+// ── FILE PICKER ───────────────────────────────────────────────────────────────
 function handleFile(input) {
   const file = input.files[0];
   if (!file) return;
   receiptFile = file;
   stopCamera();
   document.getElementById("cameraViewport").classList.remove("show");
-  // Show in existing preview
   document.getElementById("previewName").textContent = file.name;
   if (file.type.startsWith("image/")) {
     const reader = new FileReader();
@@ -745,94 +875,16 @@ function handleFile(input) {
     document.getElementById("previewImg").src = "";
     document.getElementById("previewWrap").classList.add("show");
   }
-  // Reset cam buttons
   document.getElementById("btnOpenCamera").classList.add("show");
   document.getElementById("btnCapture").classList.remove("show");
   document.getElementById("btnRetake").classList.remove("show");
 }
 
-// --- Live camera ---
-async function openCamera() {
-  try {
-    stopCamera();
-    // Remove any previously captured file preview
-    document.getElementById("previewWrap").classList.remove("show");
-    receiptFile = null;
-
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } },
-      audio: false
-    });
-    const video = document.getElementById("camVideo");
-    video.srcObject = cameraStream;
-    video.style.display = "block";
-    document.getElementById("camPreviewImg").style.display = "none";
-    document.getElementById("camPlaceholder").style.display = "none";
-    document.getElementById("cameraViewport").classList.add("show");
-
-    // Swap buttons: hide Open Camera, show Capture
-    document.getElementById("btnOpenCamera").classList.remove("show");
-    document.getElementById("btnCapture").classList.add("show");
-    document.getElementById("btnRetake").classList.remove("show");
-  } catch(e) {
-    showToast("Camera error: " + e.message, "err");
-  }
-}
-
-function capturePhoto() {
-  const video  = document.getElementById("camVideo");
-  const canvas = document.getElementById("camCanvas");
-  canvas.width  = video.videoWidth  || 1280;
-  canvas.height = video.videoHeight || 960;
-  canvas.getContext("2d").drawImage(video, 0, 0);
-
-  canvas.toBlob(blob => {
-    stopCamera();
-    // Show captured image in viewport
-    const prev = document.getElementById("camPreviewImg");
-    prev.src = URL.createObjectURL(blob);
-    prev.style.display = "block";
-    document.getElementById("camVideo").style.display = "none";
-    document.getElementById("camPlaceholder").style.display = "none";
-
-    // Store as receiptFile (fake File object)
-    const date = document.getElementById("date").value || new Date().toISOString().split("T")[0];
-    const vendor = (document.getElementById("vendor").value || "receipt").replace(/[^a-zA-Z0-9]/g,"_").substring(0,20);
-    receiptFile = new File([blob], `${date}_${vendor}.jpg`, { type: "image/jpeg" });
-
-    // Swap buttons: show Retake + hide Capture + hide OpenCamera
-    document.getElementById("btnOpenCamera").classList.remove("show");
-    document.getElementById("btnCapture").classList.remove("show");
-    document.getElementById("btnRetake").classList.add("show");
-
-    showToast("📸 Photo captured — ready to submit", "ok");
-  }, "image/jpeg", 0.93);
-}
-
-function retakePhoto() {
-  receiptFile = null;
-  document.getElementById("camPreviewImg").style.display = "none";
-  document.getElementById("camPlaceholder").style.display = "flex";
-  // Reopen camera
-  openCamera();
-}
-
-function stopCamera() {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(t => t.stop());
-    cameraStream = null;
-  }
-  const video = document.getElementById("camVideo");
-  if (video) { video.srcObject = null; video.style.display = "none"; }
-}
-
 function removeImage() {
-  receiptFile = null;
-  stopCamera();
+  receiptFile = null; stopCamera();
   document.getElementById("previewWrap").classList.remove("show");
   document.getElementById("previewImg").src = "";
   document.getElementById("camPreviewImg").style.display = "none";
-  document.getElementById("camPreviewImg").src = "";
   document.getElementById("cameraViewport").classList.remove("show");
   document.getElementById("camPlaceholder").style.display = "flex";
   document.getElementById("fileGallery").value = "";
@@ -842,15 +894,14 @@ function removeImage() {
   hideProgress();
 }
 
-// ── FORM LOGIC ────────────────────────────────────────────────────────────────
+// ── FORM HELPERS ──────────────────────────────────────────────────────────────
 function updateSubcats() {
   const cat = document.getElementById("category").value;
   const sel = document.getElementById("subcategory");
   sel.innerHTML = '<option value="">— Select sub-category —</option>';
   (SUBCATS[cat] || []).forEach(s => {
     const o = document.createElement("option");
-    o.value = o.text = s;
-    sel.appendChild(o);
+    o.value = o.text = s; sel.appendChild(o);
   });
 }
 
@@ -870,8 +921,7 @@ async function submitForm() {
   const amount   = parseFloat(document.getElementById("amount").value) || 0;
 
   if (!date || !category || !vendor || !payment || amount <= 0) {
-    showToast("⚠ Fill in all required fields", "err");
-    return;
+    showToast("⚠ Fill in all required fields", "err"); return;
   }
 
   const btn   = document.getElementById("submitBtn");
@@ -880,49 +930,52 @@ async function submitForm() {
   label.innerHTML = '<div class="spinner"></div> Saving...';
 
   try {
-    // 1. Upload receipt to OneDrive (if selected)
+    // 1. Ensure OneDrive folder + Excel file exist
+    showProgress(5, "Preparing OneDrive...");
+    await ensureFolder();
+    await ensureExcelFile();
+
+    // 2. Upload receipt photo if present
     let receiptLink = "";
     if (receiptFile) {
-      receiptLink = await uploadToOneDrive(receiptFile, date, vendor);
-      showProgress(100, "Upload complete!");
-      await new Promise(r => setTimeout(r, 600));
-      hideProgress();
+      receiptLink = await uploadReceiptToOneDrive(receiptFile, date, vendor);
+      showProgress(85, "Receipt uploaded!");
+      await new Promise(r => setTimeout(r, 400));
     }
 
-    // 2. Send expense data to Apps Script → Google Sheets
-    label.innerHTML = '<div class="spinner"></div> Writing to Sheet...';
-    const payload = {
-      date        : date,
-      category    : category,
-      subcategory : document.getElementById("subcategory").value,
-      vendor      : vendor,
-      description : document.getElementById("description").value.trim(),
-      payment     : payment,
-      amount      : amount.toFixed(2),
-      tax         : (parseFloat(document.getElementById("tax").value) || 0).toFixed(2),
-      approvedBy  : document.getElementById("approvedBy").value.trim(),
-      receiptNo   : document.getElementById("receiptNo").value.trim(),
-      submittedBy : document.getElementById("submittedBy").value.trim(),
-      receiptLink : receiptLink,
-    };
+    // 3. Append row to Excel
+    showProgress(90, "Writing to Excel...");
+    const tax   = parseFloat(document.getElementById("tax").value) || 0;
+    const total = (amount + tax).toFixed(2);
+    const row   = [
+      date,
+      category,
+      document.getElementById("subcategory").value,
+      vendor,
+      document.getElementById("description").value.trim(),
+      payment,
+      amount.toFixed(2),
+      tax.toFixed(2),
+      total,
+      document.getElementById("approvedBy").value.trim(),
+      document.getElementById("receiptNo").value.trim(),
+      document.getElementById("submittedBy").value.trim(),
+      receiptLink
+    ];
+    await appendRowToExcel(row);
 
-    const res  = await fetch(APPS_SCRIPT_URL, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
+    showProgress(100, "Done!");
+    await new Promise(r => setTimeout(r, 400));
+    hideProgress();
 
-    if (data.success) {
-      const total = (parseFloat(payload.amount) + parseFloat(payload.tax)).toFixed(2);
-      document.getElementById("successMsg").innerHTML =
-        `Total $${total} saved to Google Sheets.${receiptLink ? "<br>Receipt uploaded to OneDrive." : ""}`;
-      document.getElementById("formWrap").style.display    = "none";
-      document.getElementById("successScreen").classList.add("show");
-    } else {
-      throw new Error(data.error || "Unknown error from server");
-    }
+    // 4. Show success
+    document.getElementById("successMsg").innerHTML =
+      `Total $${total} saved to <strong>Expenses.xlsx</strong> in OneDrive.${receiptLink ? "<br>Receipt photo uploaded & linked." : ""}`;
+    document.getElementById("formWrap").style.display   = "none";
+    document.getElementById("successScreen").classList.add("show");
 
   } catch(err) {
+    hideProgress();
     showToast("❌ " + err.message, "err");
   } finally {
     btn.disabled = false;
@@ -930,6 +983,7 @@ async function submitForm() {
   }
 }
 
+// ── CLEAR / RESET ─────────────────────────────────────────────────────────────
 function clearForm() {
   ["vendor","description","approvedBy","receiptNo"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("amount").value   = "";
@@ -938,9 +992,7 @@ function clearForm() {
   document.getElementById("payment").value  = "";
   document.getElementById("subcategory").innerHTML = '<option value="">— Select category first —</option>';
   document.getElementById("totalDisplay").textContent = "$0.00";
-  removeImage();
-  stopCamera();
-  setToday();
+  removeImage(); stopCamera(); setToday();
 }
 
 function resetForm() {
