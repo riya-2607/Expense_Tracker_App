@@ -679,7 +679,7 @@ async function uploadToOneDrive(file, dateStr, vendor) {
   );
   showProgress(95, "Finalizing...");
   const shareData = await shareRes.json();
-  return shareData.link?.webUrl || fileData.webUrl;
+  return [shareData.link?.webUrl || fileData.webUrl || "", safeName];
 }
 
 // ── PROGRESS HELPERS ──────────────────────────────────────────────────────────
@@ -796,7 +796,7 @@ function calcTotal() {
 
 // ── EXCEL CONFIG ─────────────────────────────────────────────────────────────
 const EXCEL_PATH    = "Documents/ExpenseTracker/Expenses.xlsx";
-const EXCEL_HEADERS = ["Date","Category","Vendor","Paid_By","Description","Amount","Tax","Total_Amount","Receipt_Link"];
+const EXCEL_HEADERS = ["Date","Category","Vendor","Paid_By","Description","Amount","Tax","Total_Amount","Receipt_Name","Receipt_Link"];
 
 // ── SAFE GRAPH FETCH ──────────────────────────────────────────────────────────
 async function gFetch(path, opts = {}) {
@@ -843,7 +843,7 @@ async function appendRowToExcel(row) {
     const a1Val = JSON.parse(await (await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1')`, { headers: h })).text()).values?.[0]?.[0] || "";
     let nextRow = 2;
     if (!a1Val.toString().trim()) {
-      await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1:I1')`, {
+      await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A1:J1')`, {
         method: "PATCH", headers: h, body: JSON.stringify({ values: [EXCEL_HEADERS] })
       });
     } else {
@@ -851,7 +851,7 @@ async function appendRowToExcel(row) {
       nextRow = (usedData.rowCount || 1) + 1;
     }
 
-    const writeRes  = await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A${nextRow}:I${nextRow}')`, {
+    const writeRes  = await fetch(`${base}${fp}:/workbook/worksheets('${enc}')/range(address='A${nextRow}:J${nextRow}')`, {
       method: "PATCH", headers: h, body: JSON.stringify({ values: [row] })
     });
     const writeText = await writeRes.text();
@@ -883,8 +883,9 @@ async function submitForm() {
 
   try {
     let receiptLink = "";
+    let receiptName = "";
     if (receiptFile) {
-      receiptLink = await uploadToOneDrive(receiptFile, date, vendor);
+      [receiptLink, receiptName] = await uploadToOneDrive(receiptFile, date, vendor);
       showProgress(100, "Upload complete!");
       await new Promise(r => setTimeout(r, 600));
       hideProgress();
@@ -902,6 +903,7 @@ async function submitForm() {
       amount.toFixed(2),
       tax.toFixed(2),
       total,
+      receiptName,
       receiptLink,
     ];
     await appendRowToExcel(row);
