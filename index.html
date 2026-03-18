@@ -225,6 +225,18 @@ input[type="file"]{display:none;}
 }
 .preview-name{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;}
 .preview-remove{background:none;border:none;color:var(--danger);font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;}
+/* ── LIVE CAMERA ──────────────────────────────────────────────────────────── */
+.camera-viewport{border-radius:10px;overflow:hidden;background:#0a0a0f;aspect-ratio:4/3;position:relative;border:1px solid var(--border2);display:none;margin-bottom:10px;}
+.camera-viewport.show{display:block;}
+#camVideo{width:100%;height:100%;object-fit:cover;display:block;}
+#camCanvas{display:none;}
+#camPreviewImg{width:100%;height:100%;object-fit:contain;display:none;position:absolute;inset:0;background:#0a0a0f;}
+.cam-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:rgba(240,239,248,.3);pointer-events:none;}
+.cam-placeholder span{font-size:12px;}
+.cam-action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.cam-action-row .cap-btn{display:none;}
+.cam-action-row .cap-btn.show{display:flex;}
+
 
 /* ── UPLOAD PROGRESS ──────────────────────────────────────────────────────── */
 .upload-progress{
@@ -421,15 +433,29 @@ input[type="file"]{display:none;}
     <div class="card">
       <div class="card-head"><div class="card-head-dot"></div><div class="card-head-label">Receipt Image</div></div>
       <div class="card-body">
-        <div class="capture-btns">
-          <button type="button" class="cap-btn" onclick="document.getElementById('fileCamera').click()">
+        <div class="camera-viewport" id="cameraViewport">
+          <div class="cam-placeholder" id="camPlaceholder">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>Camera preview</span>
+          </div>
+          <video id="camVideo" autoplay playsinline></video>
+          <canvas id="camCanvas"></canvas>
+          <img id="camPreviewImg" alt="Captured receipt"/>
+        </div>
+        <div class="cam-action-row">
+          <button type="button" class="cap-btn show" id="btnOpenCamera" onclick="openCamera()">
             <span class="cap-icon">📷</span> Take Photo
           </button>
-          <button type="button" class="cap-btn" onclick="document.getElementById('fileGallery').click()">
+          <button type="button" class="cap-btn show" onclick="document.getElementById('fileGallery').click()">
             <span class="cap-icon">🖼</span> Choose File
           </button>
+          <button type="button" class="cap-btn" id="btnCapture" onclick="capturePhoto()">
+            <span class="cap-icon">⊙</span> Capture
+          </button>
+          <button type="button" class="cap-btn" id="btnRetake" onclick="retakePhoto()">
+            <span class="cap-icon">↩</span> Retake
+          </button>
         </div>
-        <input type="file" id="fileCamera"  accept="image/*" capture="environment" onchange="handleFile(this)"/>
         <input type="file" id="fileGallery" accept="image/*,application/pdf" onchange="handleFile(this)"/>
         <div class="preview-wrap" id="previewWrap">
           <img id="previewImg" src="" alt="Receipt preview"/>
@@ -442,7 +468,7 @@ input[type="file"]{display:none;}
           <div class="progress-label" id="progressLabel">Uploading to OneDrive...</div>
           <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
         </div>
-        <div class="hint" style="margin-top:10px;">Uploaded to OneDrive · link stored in Sheet</div>
+        <div class="hint" style="margin-top:10px;">Uploaded to OneDrive · link saved in Excel</div>
       </div>
     </div>
 
@@ -669,30 +695,92 @@ function hideProgress() {
   document.getElementById("progressBar").style.width = "0%";
 }
 
-// ── RECEIPT FILE HANDLING ─────────────────────────────────────────────────────
-function handleFile(input) {
-  const file = input.files[0]; if (!file) return;
-  receiptFile = file;
-  document.getElementById("previewName").textContent = file.name;
-  if (file.type.startsWith("image/")) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      document.getElementById("previewImg").src = e.target.result;
-      document.getElementById("previewWrap").classList.add("show");
-    };
-    reader.readAsDataURL(file);
-  } else {
-    document.getElementById("previewImg").src = "";
-    document.getElementById("previewWrap").classList.add("show");
+// ── CAMERA & FILE HANDLING ────────────────────────────────────────────────────
+let cameraStream = null;
+
+async function openCamera() {
+  try {
+    stopCamera();
+    document.getElementById("previewWrap").classList.remove("show");
+    receiptFile = null;
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } }, audio: false
+    });
+    const video = document.getElementById("camVideo");
+    video.srcObject = cameraStream; video.style.display = "block";
+    document.getElementById("camPreviewImg").style.display = "none";
+    document.getElementById("camPlaceholder").style.display = "none";
+    document.getElementById("cameraViewport").classList.add("show");
+    document.getElementById("btnOpenCamera").classList.remove("show");
+    document.getElementById("btnCapture").classList.add("show");
+    document.getElementById("btnRetake").classList.remove("show");
+  } catch(e) {
+    showToast("Camera error: " + e.message, "err");
   }
 }
 
-function removeImage() {
+function capturePhoto() {
+  const video = document.getElementById("camVideo");
+  const canvas = document.getElementById("camCanvas");
+  canvas.width = video.videoWidth || 1280; canvas.height = video.videoHeight || 960;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  canvas.toBlob(blob => {
+    stopCamera();
+    const prev = document.getElementById("camPreviewImg");
+    prev.src = URL.createObjectURL(blob); prev.style.display = "block";
+    document.getElementById("camVideo").style.display = "none";
+    document.getElementById("camPlaceholder").style.display = "none";
+    const date   = document.getElementById("date").value || new Date().toISOString().split("T")[0];
+    const vendor = (document.getElementById("vendor").value || "receipt").replace(/[^a-zA-Z0-9]/g,"_").substring(0,20);
+    receiptFile  = new File([blob], `${date}_${vendor}.jpg`, { type: "image/jpeg" });
+    document.getElementById("btnOpenCamera").classList.remove("show");
+    document.getElementById("btnCapture").classList.remove("show");
+    document.getElementById("btnRetake").classList.add("show");
+    showToast("📸 Photo captured — ready to submit", "ok");
+  }, "image/jpeg", 0.93);
+}
+
+function retakePhoto() {
   receiptFile = null;
+  document.getElementById("camPreviewImg").style.display = "none";
+  document.getElementById("camPlaceholder").style.display = "flex";
+  openCamera();
+}
+
+function stopCamera() {
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+  const v = document.getElementById("camVideo");
+  if (v) { v.srcObject = null; v.style.display = "none"; }
+}
+
+function handleFile(input) {
+  const file = input.files[0]; if (!file) return;
+  receiptFile = file; stopCamera();
+  document.getElementById("cameraViewport").classList.remove("show");
+  document.getElementById("previewName").textContent = file.name;
+  if (file.type.startsWith("image/")) {
+    const reader = new FileReader();
+    reader.onload = e => { document.getElementById("previewImg").src = e.target.result; document.getElementById("previewWrap").classList.add("show"); };
+    reader.readAsDataURL(file);
+  } else {
+    document.getElementById("previewImg").src = ""; document.getElementById("previewWrap").classList.add("show");
+  }
+  document.getElementById("btnOpenCamera").classList.add("show");
+  document.getElementById("btnCapture").classList.remove("show");
+  document.getElementById("btnRetake").classList.remove("show");
+}
+
+function removeImage() {
+  receiptFile = null; stopCamera();
   document.getElementById("previewWrap").classList.remove("show");
   document.getElementById("previewImg").src = "";
-  document.getElementById("fileCamera").value  = "";
+  document.getElementById("camPreviewImg").style.display = "none";
+  document.getElementById("cameraViewport").classList.remove("show");
+  document.getElementById("camPlaceholder").style.display = "flex";
   document.getElementById("fileGallery").value = "";
+  document.getElementById("btnOpenCamera").classList.add("show");
+  document.getElementById("btnCapture").classList.remove("show");
+  document.getElementById("btnRetake").classList.remove("show");
   hideProgress();
 }
 
@@ -838,7 +926,7 @@ function clearForm() {
   document.getElementById("paidBy").value       = "";
   document.getElementById("category").value    = "";
   document.getElementById("totalDisplay").textContent = "$0.00";
-  removeImage();
+  removeImage(); stopCamera();
   setToday();
 }
 
