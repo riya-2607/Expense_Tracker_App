@@ -605,6 +605,10 @@ function populateDropdowns() {
     const o = document.createElement("option"); o.value = o.text = c; catSel.appendChild(o);
   });
 
+// Set defaults
+document.getElementById("category").value    = "GeneralSupplies";
+document.getElementById("paidBy").value      = "Business";
+document.getElementById("paymentType").value = "Debit";
 
 }
 
